@@ -1,0 +1,61 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { languages, defaultLang } from '../../i18n/ui';
+
+export async function getStaticPaths() {
+  const locales = Object.keys(languages).filter(l => l !== defaultLang);
+  return locales.map(l => ({ params: { lang: l } }));
+}
+
+const { lang } = Astro.params;
+const locale = lang as keyof typeof languages;
+
+const content = {
+  es: {
+    title: "Sobre el Archivo | Sinpes",
+    h1: "Sobre Sinpes",
+    p1: "Fundado como respuesta a la fragmentación de las fundiciones digitales, Sinpes se estableció para curar las mejores tipografías de código abierto del mundo. Nuestra misión va más allá de la agregación; realizamos auditorías tipográficas rigurosas para asegurar una perfección absoluta a nivel de píxel tanto para interfaces digitales de alta resolución como para flujos de trabajo editoriales impresos.",
+    h2_1: "Nuestros Estándares de Curaduría",
+    p2: "Reconocemos que la tipografía es la arquitectura fundamental de la comunicación visual. A diferencia de los agregadores automatizados que extraen datos de fuentes indiscriminadamente, cada tipografía archivada en Sinpes se somete a una revisión técnica exhaustiva. Verificamos meticulosamente las tablas de kerning, la integridad de los glifos, las instrucciones de hinting y las características OpenType. Solo las fuentes que cumplen con nuestros estrictos criterios para estar listas para producción son admitidas en el archivo.",
+    h2_2: "El Imperativo del Código Abierto",
+    p3: "En Sinpes, creemos que las herramientas de diseño premium no deben estar restringidas por tarifas de licencia prohibitivas. Al archivar tipografías licenciadas exclusivamente bajo la SIL Open Font License (OFL), Apache 2.0 y acuerdos permisivos similares, nuestro objetivo es democratizar el acceso a una tipografía excepcional. Aseguramos que creadores independientes, ingenieros de software y estudios de diseño corporativos tengan acceso sin restricciones a tipografías de clase mundial para aplicaciones comerciales y personales.",
+    h2_3: "Infraestructura Técnica",
+    p4: "Nuestra tubería de distribución está diseñada para lograr un máximo rendimiento y confiabilidad. Proporcionamos formatos WOFF2 altamente optimizados y listos para la web, adaptados para arquitecturas front-end modernas, junto con maestros OTF y TTF prístinos para diseñadores de impresión. Cada descarga incluye documentación de licencia transparente, salvaguardando sus proyectos comerciales contra infracciones de propiedad intelectual."
+  },
+  pt: {
+    title: "Sobre o Arquivo | Sinpes",
+    h1: "Sobre a Sinpes",
+    p1: "Fundada como uma resposta à fragmentação das fundições digitais, a Sinpes foi estabelecida para curar as melhores tipografias de código aberto do mundo. Nossa missão vai além da agregação; realizamos auditorias tipográficas rigorosas para garantir a perfeição absoluta a nível de pixel, tanto para interfaces digitais de alta resolução quanto para fluxos de trabalho editoriais impressos.",
+    h2_1: "Nossos Padrões de Curadoria",
+    p2: "Reconhecemos que a tipografia é a arquitetura fundamental da comunicação visual. Ao contrário de agregadores automatizados que extraem dados de fontes indiscriminadamente, cada tipografia arquivada na Sinpes é submetida a uma revisão técnica abrangente. Verificamos meticulosamente as tabelas de kerning, a integridade dos glifos, as instruções de hinting e os recursos OpenType. Apenas as fontes que atendem aos nossos rigorosos critérios de produção são admitidas no arquivo.",
+    h2_2: "O Imperativo do Código Aberto",
+    p3: "Na Sinpes, acreditamos que ferramentas de design premium não devem ser restritas por taxas de licenciamento proibitivas. Ao arquivar tipografias licenciadas exclusivamente sob a SIL Open Font License (OFL), Apache 2.0 e acordos permissivos semelhantes, nosso objetivo é democratizar o acesso a uma tipografia excepcional. Garantimos que criadores independentes, engenheiros de software e estúdios de design corporativos tenham acesso irrestrito a tipografias de classe mundial para aplicações comerciais e pessoais.",
+    h2_3: "Infraestrutura Técnica",
+    p4: "Nosso pipeline de distribuição é projetado para o máximo desempenho e confiabilidade. Fornecemos formatos WOFF2 altamente otimizados e prontos para a web, adaptados para arquiteturas front-end modernas, juntamente com mestres OTF e TTF puros para designers de impressão. Cada download inclui documentação de licenciamento transparente, protegendo seus projetos comerciais contra infrações de propriedade intelectual."
+  }
+};
+const c = content[locale as keyof typeof content] || content['es'];
+---
+<Layout title={c.title} description={c.p1} locale={locale}>
+  <main class="view-container legal-page">
+    <h1>{c.h1}</h1>
+    <p>{c.p1}</p>
+    
+    <h2>{c.h2_1}</h2>
+    <p>{c.p2}</p>
+    
+    <h2>{c.h2_2}</h2>
+    <p>{c.p3}</p>
+    
+    <h2>{c.h2_3}</h2>
+    <p>{c.p4}</p>
+  </main>
+</Layout>
+
+<style>
+  .legal-page { padding: 80px 24px; max-width: 800px; margin: 0 auto; border-left: 0.5px solid var(--rule); border-right: 0.5px solid var(--rule); min-height: 60vh; }
+  h1 { font-size: 48px; margin-bottom: 32px; letter-spacing: -0.02em; font-weight: 500; }
+  h2 { font-size: 12px; margin-top: 48px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  p { font-size: 16px; line-height: 1.7; margin-bottom: 24px; color: var(--fg); max-width: 700px; }
+  .last-updated { font-size: 14px; color: var(--muted); margin-bottom: 48px; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+</style>

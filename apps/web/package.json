@@ -1,0 +1,24 @@
+{
+  "name": "sinpes-web",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "postbuild": "npx pagefind --site dist"
+  },
+  "dependencies": {
+    "@astrojs/preact": "^3.5.4",
+    "@astrojs/sitemap": "^3.1.6",
+    "astro": "^4.0.0",
+    "preact": "^10.29.4"
+  },
+  "devDependencies": {
+    "pagefind": "^1.0.4"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true,
+    "sharp@0.33.5": true
+  }
+}

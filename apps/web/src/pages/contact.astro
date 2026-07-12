@@ -1,0 +1,21 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { defaultLang } from '../i18n/ui';
+---
+<Layout title="Contact | Sinpes" description="Get in touch with the Sinpes archival team." locale={defaultLang}>
+  <main class="view-container legal-page">
+    <h1>Contact</h1>
+    <p>We value feedback from the design community. Whether you are a type foundry wishing to submit a family to the archive, a developer reporting a technical discrepancy, or a designer with licensing inquiries, our team is here to assist.</p>
+    <h2>General Inquiries</h2>
+    <p>For general questions, partnership proposals, or press inquiries, please direct your correspondence to our archival team at:<br/><strong>contact@sinpes.com</strong></p>
+    <h2>DMCA & Licensing</h2>
+    <p>Sinpes respects intellectual property rights. If you are a copyright holder and believe a typeface has been archived in violation of its license, please send a formal notice to <strong>legal@sinpes.com</strong> with the appropriate documentation.</p>
+  </main>
+</Layout>
+<style>
+  .legal-page { padding: 80px 24px; max-width: 800px; margin: 0 auto; border-left: 0.5px solid var(--rule); border-right: 0.5px solid var(--rule); min-height: 60vh; }
+  h1 { font-size: 48px; margin-bottom: 32px; letter-spacing: -0.02em; font-weight: 500; }
+  h2 { font-size: 12px; margin-top: 48px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  p { font-size: 16px; line-height: 1.7; margin-bottom: 24px; color: var(--fg); max-width: 650px; }
+  strong { font-weight: 600; }
+</style>

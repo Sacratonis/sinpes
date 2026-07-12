@@ -1,0 +1,74 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import FontItem from "../../components/FontItem.astro";
+import CategoryRail from "../../components/CategoryRail.astro";
+import PreviewBar from "../../components/PreviewBar.astro";
+import { loadFontRegistry } from "../../content/fonts/loader";
+import { languages, defaultLang } from "../../i18n/ui";
+import { useTranslations } from "../../i18n/utils";
+
+export async function getStaticPaths() {
+  const locales = Object.keys(languages).filter((l) => l !== defaultLang);
+  return locales.map((l) => ({ params: { lang: l } }));
+}
+
+const { lang } = Astro.params;
+const locale = lang as keyof typeof languages;
+const t = useTranslations(locale);
+
+const fonts = await loadFontRegistry();
+const uniqueCategories = [...new Set(fonts.map((f) => f.category))].filter(
+  Boolean,
+);
+---
+
+<Layout
+  title={t("home.title")}
+  description={t("home.description")}
+  locale={locale}
+>
+  <CategoryRail locale={locale} categories={uniqueCategories} />
+  <PreviewBar locale={locale} />
+
+  <main class="view-container">
+    <div class="font-list" role="list">
+      {
+        fonts.length > 0 ? (
+          fonts.map((font, index) => (
+            <FontItem font={font} index={index + 1} locale={locale} />
+          ))
+        ) : (
+          <div class="empty-state">
+            <p>{t("home.empty")}</p>
+          </div>
+        )
+      }
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .font-list {
+    width: 100%;
+  }
+
+  /* Grid Layout Styles */
+  :global([data-layout="grid"]) .font-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    border-left: 0.5px solid var(--rule);
+    border-top: 0.5px solid var(--rule);
+  }
+
+  /* List Layout Styles */
+  :global([data-layout="list"]) .font-list {
+    display: block;
+  }
+
+  .empty-state {
+    padding: 80px 24px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>

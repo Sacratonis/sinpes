@@ -1,0 +1,61 @@
+---
+import { ViewTransitions } from 'astro:transitions';
+import ThemeInit from '../components/ThemeInit.astro';
+import Navbar from '../components/Navbar.astro';
+import Footer from '../components/Footer.astro';
+import CookieConsent from '../components/CookieConsent.astro';
+import '../styles/global.css';
+
+import { languages, defaultLang } from '../i18n/ui';
+import { generateCanonical, generateHreflang } from '../lib/seo';
+
+interface Props {
+  title: string;
+  description: string;
+  locale?: keyof typeof languages; 
+}
+
+const { title, description, locale = defaultLang } = Astro.props;
+
+const siteURL = Astro.site || new URL('https://sinpes.com');
+const currentPath = Astro.url.pathname;
+const canonicalURL = generateCanonical(siteURL, currentPath);
+const hreflangLinks = generateHreflang(siteURL, currentPath, locale as keyof typeof languages);
+---
+<!DOCTYPE html>
+<html lang={locale}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    
+    <link rel="canonical" href={canonicalURL} />
+    <ViewTransitions />
+    {Object.entries(hreflangLinks).map(([lang, url]) => (
+      <link rel="alternate" hreflang={lang} href={url} />
+    ))}
+
+    <!-- Favicon Activation -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    
+    <!-- Defer ads until consent is granted -->
+    <script is:inline>
+      window.adsbygoogle = window.adsbygoogle || [];
+      window.adsbygoogle.pauseAdRequests = 1;
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5794892225491354" crossorigin="anonymous"></script>
+    
+    <ThemeInit />
+  </head>
+  <body>
+    <Navbar locale={locale} />
+    <slot />
+    <Footer locale={locale} />
+    <CookieConsent locale={locale} />
+  </body>
+</html>

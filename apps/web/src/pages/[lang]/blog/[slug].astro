@@ -1,0 +1,159 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { blogPosts } from '../../../data/blog';
+import { languages, defaultLang } from '../../../i18n/ui';
+
+// 1. Generate routes for all non-default languages (ES, PT) and all blog slugs
+export async function getStaticPaths() {
+  const locales = Object.keys(languages).filter(l => l !== defaultLang);
+  return locales.flatMap(lang => 
+    blogPosts.map(post => ({
+      params: { lang, slug: post.slug },
+      props: { post }
+    }))
+  );
+}
+
+const { lang } = Astro.params;
+const { post } = Astro.props;
+const locale = lang as keyof typeof languages;
+
+// 2. Safely extract localized content (Fallback to English if a translation is missing)
+const title = post.title[locale] || post.title['en'];
+const content = post.content[locale] || post.content['en'];
+const excerpt = post.excerpt[locale] || post.excerpt['en'];
+
+// 3. Dynamically extract Table of Contents from H2 tags in the HTML content
+const tocRegex = /<h2\s+id="([^"]+)">(.*?)<\/h2>/gi;
+const tocItems = [];
+let match;
+while ((match = tocRegex.exec(content)) !== null) {
+  tocItems.push({ id: match[1], text: match[2] });
+}
+---
+
+<Layout title={title} description={excerpt} locale={locale}>
+  <main class="blog-reader view-container">
+    <article class="blog-main">
+      <header class="blog-header">
+        <span class="label-upper tabular">{post.date} · EDITORIAL</span>
+        <h1>{title}</h1>
+        <p class="excerpt">{excerpt}</p>
+      </header>
+      
+      {post.image_url && (
+        <img
+          src={post.image_url}
+          alt={post.image_alt_text ?? post.title[locale]}
+          title={post.target_keyword}
+          width="1200"
+          height="630"
+          loading="lazy"
+          class="blog-hero"
+        />
+      )}
+      
+      <!-- Render the raw HTML content from blog.ts -->
+      <div class="blog-body" set:html={content} />
+    </article>
+    
+    <!-- Sticky Table of Contents Sidebar -->
+    <aside class="blog-toc">
+      <div class="toc-sticky">
+        <h4 class="label-upper">Table of Contents</h4>
+        <ul>
+          {tocItems.map(item => (
+            <li><a href={`#${item.id}`} class="toc-link" data-target={item.id}>{item.text}</a></li>
+          ))}
+        </ul>
+      </div>
+    </aside>
+  </main>
+</Layout>
+
+<style>
+  .blog-reader { 
+    display: grid; 
+    grid-template-columns: 1fr 260px; 
+    border-left: 0.5px solid var(--rule); 
+    border-right: 0.5px solid var(--rule); 
+  }
+  
+  .blog-main { 
+    padding: 60px 40px; 
+    border-right: 0.5px solid var(--rule); 
+    max-width: 720px; 
+  }
+  
+  .blog-header { margin-bottom: 48px; border-bottom: 0.5px solid var(--rule); padding-bottom: 32px; }
+  .blog-header h1 { font-size: 42px; font-weight: 500; line-height: 1.2; margin: 16px 0; letter-spacing: -0.02em; }
+  .excerpt { font-size: 18px; color: var(--muted); line-height: 1.5; }
+  .blog-hero { width: 100%; border-radius: 4px; margin-bottom: 40px; }
+  .blog-body h2 { font-size: 24px; margin-top: 48px; margin-bottom: 16px; font-weight: 600; }
+  .blog-body p { 
+    font-size: 16px; 
+    line-height: 1.7; 
+    margin-bottom: 24px; 
+    color: var(--fg); 
+  }
+  
+  /* TOC Styles */
+  .blog-toc { padding: 60px 24px; }
+  .toc-sticky { position: sticky; top: 100px; }
+  .toc-sticky h4 { margin-bottom: 16px; color: var(--muted); }
+  .toc-sticky ul { 
+    list-style: none; 
+    padding: 0; 
+    margin: 0; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 12px; 
+  }
+  .toc-link { 
+    font-size: 13px; 
+    color: var(--muted); 
+    text-decoration: none; 
+    transition: color 0.2s, border-color 0.2s; 
+    border-left: 2px solid transparent; 
+    padding-left: 12px; 
+    display: block; 
+  }
+  .toc-link:hover { color: var(--fg); }
+  .toc-link.active { 
+    color: var(--fg); 
+    font-weight: 600; 
+    border-left-color: var(--fg); 
+  }
+
+  /* Mobile Responsiveness */
+  @media (max-width: 720px) {
+    .blog-reader { grid-template-columns: 1fr; }
+    .blog-main { padding: 32px 20px; border-right: none; }
+    .blog-toc { display: none; } /* Hide TOC on mobile for a clean reading experience */
+  }
+</style>
+
+<script>
+  // Intersection Observer to highlight the active TOC link as the user scrolls
+  const initTocObserver = () => {
+    const links = document.querySelectorAll('.toc-link');
+    const headings = document.querySelectorAll('.blog-body h2');
+    
+    if (!headings.length) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          links.forEach(l => l.classList.remove('active'));
+          const activeLink = document.querySelector(`.toc-link[href="#${entry.target.id}"]`);
+          if (activeLink) activeLink.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -80% 0px' });
+    
+    headings.forEach(h => observer.observe(h));
+  };
+
+  initTocObserver();
+  document.addEventListener('astro:page-load', initTocObserver);
+</script>

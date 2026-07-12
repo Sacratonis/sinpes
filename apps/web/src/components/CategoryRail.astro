@@ -1,0 +1,154 @@
+---
+import { languages, defaultLang } from '../i18n/ui';
+import { useTranslations } from '../i18n/utils';
+
+interface Props { 
+  locale?: keyof typeof languages; 
+  activeCategory?: string;
+  categories?: string[]; // Dynamically injected from parent page
+}
+
+const { locale = defaultLang, activeCategory = 'all', categories = [] } = Astro.props;
+const t = useTranslations(locale);
+const basePath = locale === defaultLang ? '' : `/${locale}`;
+const categorySlug = (value: string) => value
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-|-$/g, '');
+
+// Map the dynamic categories
+const mappedCategories = [
+  { name: t('category.all') || 'All', slug: 'all' },
+  ...categories.map(cat => ({ name: cat, slug: categorySlug(cat) }))
+];
+---
+
+<div class="rail-wrap">
+  <div class="rail-anchor">{t('footer.browse') || 'Browse'}</div>
+  <nav class="category-rail" id="categoryRail">
+    {mappedCategories.map(cat => {
+      const isActive = activeCategory === cat.slug;
+      const href = cat.slug === 'all' ? `${basePath}/` : `${basePath}/category/${cat.slug}`;
+      return (
+        <a href={href} class={`cat-cell ${isActive ? 'active' : ''}`}>
+          {cat.name}
+        </a>
+      );
+    })}
+    <div class="rail-spacer"></div>
+  </nav>
+  <div class="rail-fade"></div>
+  
+  <!-- Layout Toggle UI -->
+  <div class="layout-toggle">
+    <button
+      class="layout-btn"
+      id="layoutToggle"
+      type="button"
+      aria-label={t('layout.switchList')}
+      data-label-list={t('layout.switchList')}
+      data-label-grid={t('layout.switchGrid')}
+    >
+      <span class="layout-icon icon-list" aria-hidden="true">≡</span>
+      <span class="layout-icon icon-grid" aria-hidden="true">⊞</span>
+    </button>
+  </div>
+</div>
+
+<style>
+  .rail-wrap { position: sticky; top: var(--nav-h, 64px); z-index: 20; border-bottom: 0.5px solid var(--rule); display: flex; align-items: center; justify-content: space-between; background: var(--bg); }
+  .rail-anchor {
+    flex: 0 0 auto;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    border-right: 0.5px solid var(--rule);
+    white-space: nowrap;
+  }
+  .category-rail { display: flex; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+  .category-rail::-webkit-scrollbar { display: none; }
+  .cat-cell { flex: 0 0 auto; padding: 0 18px; height: 36px; display: flex; align-items: center; border-right: 0.5px solid var(--rule); text-transform: uppercase; letter-spacing: .08em; font-size: 10px; color: var(--muted); white-space: nowrap; text-decoration: none; transition: color 0.15s; position: relative; overflow: hidden; }
+  .cat-cell::before, .cat-cell::after { position: absolute; top: 50%; opacity: 0; font-size: 10px; font-weight: 500; transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s; pointer-events: none; }
+  .cat-cell::before { content: '['; left: 8px; transform: translate(-10px, -50%); }
+  .cat-cell::after { content: ']'; right: 8px; transform: translate(10px, -50%); }
+  .cat-cell:not(.active):hover { color: var(--fg); }
+  .cat-cell:not(.active):hover::before { opacity: 1; transform: translate(0, -50%); }
+  .cat-cell:not(.active):hover::after { opacity: 1; transform: translate(0, -50%); }
+  .cat-cell.active { background: var(--fg); color: var(--bg); }
+  .rail-spacer { padding-right: 48px; } /* Space for the fade and toggle */
+  .rail-fade { position: absolute; right: 58px; top: 0; bottom: 0; width: 48px; pointer-events: none; background: linear-gradient(to right, transparent, var(--bg)); }
+  
+  .layout-toggle {
+    display: flex;
+    height: 36px;
+    border-left: 0.5px solid var(--rule);
+    background: var(--bg);
+    position: relative;
+    z-index: 2;
+  }
+  .layout-btn {
+    min-width: 58px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    transition: color 0.15s, background 0.15s;
+    font-size: 22px; /* Made the icons much larger */
+    position: relative;
+  }
+  .layout-btn:hover { color: var(--fg); }
+  
+  .layout-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  
+  /* Grid active (shows List icon to switch) */
+  .icon-list { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+  .icon-grid { opacity: 0; transform: translate(-50%, -50%) rotate(-90deg) scale(0.5); pointer-events: none; }
+  
+  /* List active (shows Grid icon to switch) */
+  :global([data-layout="list"]) .icon-list { opacity: 0; transform: translate(-50%, -50%) rotate(90deg) scale(0.5); pointer-events: none; }
+  :global([data-layout="list"]) .icon-grid { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+</style>
+
+<script>
+  const initLayoutToggle = () => {
+    const button = document.querySelector<HTMLButtonElement>('#layoutToggle');
+    if (!button || button.dataset.initialized === 'true') return;
+    button.dataset.initialized = 'true';
+
+    const syncLabel = () => {
+      const current = document.documentElement.getAttribute('data-layout') === 'list' ? 'list' : 'grid';
+      button.setAttribute(
+        'aria-label',
+        current === 'grid' ? button.dataset.labelList || '' : button.dataset.labelGrid || ''
+      );
+      button.setAttribute('aria-pressed', String(current === 'list'));
+    };
+
+    syncLabel();
+    button.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-layout') === 'list' ? 'list' : 'grid';
+      const next = current === 'grid' ? 'list' : 'grid';
+      document.documentElement.setAttribute('data-layout', next);
+      localStorage.setItem('sinpes-layout', next);
+      syncLabel();
+    });
+  };
+
+  initLayoutToggle();
+  document.addEventListener('astro:page-load', initLayoutToggle);
+</script>

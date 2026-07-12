@@ -1,0 +1,80 @@
+---
+import Layout from '@/layouts/Layout.astro';
+import CategoryRail from '@/components/CategoryRail.astro';
+import FontItem from '@/components/FontItem.astro';
+import { loadFontRegistry } from '@/content/fonts/loader';
+
+import { languages, defaultLang } from '@/i18n/ui';
+import { useTranslations } from '@/i18n/utils';
+
+export async function getStaticPaths() {
+  const categorySlug = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const fonts = await loadFontRegistry();
+  const categories = [...new Set(fonts.map(font => font.category).filter(Boolean))];
+  const supportedLangs = Object.keys(languages).filter(l => l !== defaultLang);
+
+  return supportedLangs.flatMap(lang => 
+    categories.map(categoryName => ({
+      params: { lang, slug: categorySlug(categoryName) },
+      props: {
+        categoryName,
+        categories,
+        filteredFonts: fonts.filter(font => categorySlug(font.category) === categorySlug(categoryName)),
+      }
+    }))
+  );
+}
+
+const { slug, lang } = Astro.params;
+const locale = lang as keyof typeof languages;
+const { categoryName, categories, filteredFonts } = Astro.props;
+const t = useTranslations(locale);
+const title = t('category.title').replace('{category}', categoryName);
+const description = t('category.description').replace('{category}', categoryName);
+---
+
+<Layout 
+  title={title}
+  description={description}
+  locale={locale}
+>
+  <CategoryRail locale={locale} activeCategory={slug} categories={categories} />
+  
+  <main class="view-container">
+    <div class="font-list" id="feed" role="list">
+      {filteredFonts.length > 0 ? (
+        filteredFonts.map((font, index) => (
+          <FontItem index={index + 1} font={font} locale={locale} />
+        ))
+      ) : (
+        <div class="empty-state label-upper">{t('category.empty')}</div>
+      )}
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .font-list {
+    width: 100%;
+  }
+
+  /* Grid Layout Styles */
+  :global([data-layout="grid"]) .font-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+    border-left: 0.5px solid var(--rule);
+    border-top: 0.5px solid var(--rule);
+  }
+
+  /* List Layout Styles */
+  :global([data-layout="list"]) .font-list {
+    display: block;
+  }
+
+  .empty-state {
+    padding: 80px 24px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>

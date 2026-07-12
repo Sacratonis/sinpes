@@ -1,0 +1,123 @@
+---
+import { languages, defaultLang } from '../i18n/ui';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  locale?: keyof typeof languages;
+}
+const { locale = defaultLang } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<div class="control-bar view-container">
+  <div class="control-inner">
+    <div class="input-wrap">
+      <span class="control-icon">/</span>
+      <input 
+        type="text" 
+        id="liveTextPreview" 
+        class="preview-input" 
+        placeholder={t('controls.previewPlaceholder') || 'Type to preview...'} 
+        autocomplete="off"
+      />
+    </div>
+  </div>
+</div>
+
+<style>
+  .control-bar {
+    position: sticky;
+    top: calc(var(--nav-h, 64px) + 36px); /* Sits exactly below the 36px CategoryRail */
+    z-index: 19;
+    background: var(--bg);
+    border-bottom: 0.5px solid var(--rule);
+  }
+  .control-inner {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 24px;
+    gap: 24px;
+    justify-content: space-between;
+  }
+  .input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    position: relative;
+  }
+  /* Focus animation underline for input */
+  .input-wrap::after {
+    content: ""; position: absolute; bottom: -1px; left: 0; width: 100%; height: 1px;
+    background: var(--fg);
+    transform: scaleX(0); transform-origin: right;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .input-wrap:focus-within::after {
+    transform: scaleX(1); transform-origin: left;
+  }
+  .control-icon {
+    font-size: 14px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    user-select: none;
+    flex: 0 0 auto;
+  }
+  .preview-input {
+    width: 100%;
+    height: 100%;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--fg);
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 0;
+  }
+  .preview-input::placeholder {
+    font-weight: 400;
+    color: var(--muted);
+  }
+  @media (max-width: 720px) {
+    .control-inner { flex-direction: column; height: auto; gap: 0; padding: 0; }
+    .input-wrap { padding: 0 24px; height: 36px; width: 100%; border-bottom: 0.5px solid var(--rule); }
+  }
+</style>
+
+<script>
+  const initPreview = () => {
+    const input = document.getElementById('liveTextPreview') as HTMLInputElement;
+    if (!input || input.dataset.initialized) return;
+    input.dataset.initialized = 'true';
+
+    let timeout: ReturnType<typeof setTimeout>;
+    
+    const updateSpecimens = (text: string) => {
+      const defaultGlyph = 'Aa';
+      const defaultRow = 'Ag';
+      const value = text.trim();
+      
+      requestAnimationFrame(() => {
+        document.querySelectorAll('.massive-specimen').forEach(el => {
+          el.textContent = value || defaultGlyph;
+        });
+        document.querySelectorAll('.row-specimen').forEach(el => {
+          el.textContent = value || defaultRow;
+        });
+      });
+    };
+
+    input.addEventListener('input', (e) => {
+      clearTimeout(timeout);
+      const val = (e.target as HTMLInputElement).value;
+      timeout = setTimeout(() => updateSpecimens(val), 80); // Fast 80ms debounce for 60fps feel
+    });
+  };
+
+  initPreview();
+  document.addEventListener('astro:page-load', initPreview);
+</script>

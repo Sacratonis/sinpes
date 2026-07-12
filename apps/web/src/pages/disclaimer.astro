@@ -1,0 +1,32 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { defaultLang } from '../i18n/ui';
+---
+<Layout title="Disclaimer | Sinpes" description="Legal and liability disclaimers." locale={defaultLang}>
+  <main class="view-container legal-page">
+    <h1>Disclaimer</h1>
+    <p class="last-updated">Last Updated: July 2026</p>
+    
+    <p>The information and digital assets provided by Sinpes are for general informational and design purposes. While we strive for excellence in our curation process, we make no representations or warranties of any kind regarding the completeness, accuracy, reliability, or suitability of the typography hosted on our platform.</p>
+    
+    <h2>1. "As Is" Provision</h2>
+    <p>All typefaces and related software are provided on an "AS IS" and "AS AVAILABLE" basis. Sinpes expressly disclaims all warranties, whether express or implied, including but not limited to the implied warranties of merchantability, fitness for a particular purpose, and non-infringement.</p>
+    
+    <h2>2. Limitation of Liability</h2>
+    <p>In no event shall Sinpes, its founders, or affiliates be held liable for any direct, indirect, incidental, consequential, or punitive damages arising out of your access to, or use of, the fonts downloaded from our archive. This includes, without limitation, damages for loss of profits, business interruption, or loss of data, even if we have been advised of the possibility of such damages.</p>
+    
+    <h2>3. Third-Party Intellectual Property</h2>
+    <p>Sinpes aggregates open-source fonts released by third-party creators. We do not claim ownership over these assets. It is the sole responsibility of the end-user to review and adhere to the specific licensing files (e.g., OFL.txt, LICENSE) bundled with each download. Sinpes assumes no liability for legal disputes arising from font licensing infringements by our users.</p>
+    
+    <h2>4. External Links</h2>
+    <p>Our platform may contain links to external foundries or third-party websites. Sinpes has no control over the content or practices of these external sites and assumes no responsibility for their operations or privacy policies.</p>
+  </main>
+</Layout>
+
+<style>
+  .legal-page { padding: 80px 24px; max-width: 800px; margin: 0 auto; border-left: 0.5px solid var(--rule); border-right: 0.5px solid var(--rule); min-height: 60vh; }
+  h1 { font-size: 48px; margin-bottom: 32px; letter-spacing: -0.02em; font-weight: 500; }
+  h2 { font-size: 12px; margin-top: 48px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  p { font-size: 16px; line-height: 1.7; margin-bottom: 24px; color: var(--fg); max-width: 700px; }
+  .last-updated { font-size: 14px; color: var(--muted); margin-bottom: 48px; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+</style>

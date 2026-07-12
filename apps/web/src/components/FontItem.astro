@@ -1,0 +1,32 @@
+---
+import FontRow from './FontRow.astro';
+import FontCard from './FontCard.astro';
+import { languages, defaultLang } from '../i18n/ui';
+
+interface Props {
+  index: number;
+  locale?: keyof typeof languages;
+  font: any;
+}
+
+const { index, locale = defaultLang, font } = Astro.props;
+---
+
+<div class="font-item">
+  <div class="font-view-list">
+    <FontRow index={index} locale={locale} font={font} />
+  </div>
+  <div class="font-view-grid">
+    <FontCard index={index} locale={locale} font={font} />
+  </div>
+</div>
+
+<style>
+  /* The layout toggle is controlled globally via data-layout on the documentElement */
+  :global([data-layout="grid"]) .font-view-list {
+    display: none;
+  }
+  :global([data-layout="list"]) .font-view-grid {
+    display: none;
+  }
+</style>

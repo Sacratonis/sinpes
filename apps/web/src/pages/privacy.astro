@@ -1,0 +1,35 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { defaultLang } from '../i18n/ui';
+---
+<Layout title="Privacy Policy | Sinpes" description="Privacy policy and data handling practices." locale={defaultLang}>
+  <main class="view-container legal-page">
+    <h1>Privacy Policy</h1>
+    <p class="last-updated">Last Updated: July 2026</p>
+    
+    <p>At Sinpes, we are committed to safeguarding your privacy and ensuring transparency in our data processing practices. This Privacy Policy outlines how we collect, utilize, and protect your information when you access our typography archive and related services.</p>
+    
+    <h2>1. Data Collection and Usage</h2>
+    <p>Sinpes operates fundamentally on a principle of data minimization. We do not require account creation, and we do not collect personally identifiable information (PII) during your standard browsing or downloading of typefaces. Any data collected is strictly limited to non-identifying telemetry necessary for maintaining the security, performance, and functionality of our infrastructure.</p>
+    
+    <h2>2. Cookies and Local Storage</h2>
+    <p>We utilize minimal local storage mechanisms exclusively for core user experience enhancements, such as persisting your Dark Mode preference and managing consent states. We do not employ tracking cookies for cross-site surveillance or invasive profiling.</p>
+    
+    <h2>3. Third-Party Integrations and Analytics</h2>
+    <p>To sustain our open-source initiative, Sinpes may integrate with select third-party services, including Google AdSense. These services may utilize cookies to serve advertisements based on your prior visits to our platform or other websites. You maintain full control over these preferences and may opt out of personalized advertising at any time through standard browser controls or designated consent dialogs.</p>
+    
+    <h2>4. GDPR and CCPA Compliance</h2>
+    <p>We adhere to strict data protection frameworks, including the General Data Protection Regulation (GDPR) and the California Consumer Privacy Act (CCPA). Users situated in applicable jurisdictions retain the right to request access to, or the deletion of, any telemetry data inadvertently associated with their sessions.</p>
+    
+    <h2>5. Contact Information</h2>
+    <p>For inquiries regarding our privacy practices or data handling policies, please reach out to our compliance team at privacy@sinpes.com.</p>
+  </main>
+</Layout>
+
+<style>
+  .legal-page { padding: 80px 24px; max-width: 800px; margin: 0 auto; border-left: 0.5px solid var(--rule); border-right: 0.5px solid var(--rule); min-height: 60vh; }
+  h1 { font-size: 48px; margin-bottom: 32px; letter-spacing: -0.02em; font-weight: 500; }
+  h2 { font-size: 12px; margin-top: 48px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  p { font-size: 16px; line-height: 1.7; margin-bottom: 24px; color: var(--fg); max-width: 700px; }
+  .last-updated { font-size: 14px; color: var(--muted); margin-bottom: 48px; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+</style>

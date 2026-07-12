@@ -1,0 +1,129 @@
+---
+const { locale = "en" } = Astro.props;
+
+const translations = {
+  en: {
+    message:
+      "We use cookies and serve personalized ads to keep this foundry free. By continuing, you agree to our policies.",
+    accept: "Got it",
+    decline: "Decline",
+  },
+  es: {
+    message:
+      "Usamos cookies y mostramos anuncios personalizados para mantener esta fundición gratuita. Al continuar, aceptas nuestras políticas.",
+    accept: "Entendido",
+    decline: "Rechazar",
+  },
+};
+// @ts-ignore
+const t = translations[locale] || translations.en;
+---
+
+<div id="cookie-consent" style="display: none;" class="consent-banner">
+  <p>{t.message}</p>
+  <div class="consent-actions">
+    <button id="consent-decline">{t.decline}</button>
+    <button id="consent-accept">{t.accept}</button>
+  </div>
+</div>
+
+<style>
+  .consent-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: var(--fg);
+    color: var(--bg);
+    padding: 1rem 2rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 9999;
+    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.1);
+    font-family: var(--font-body, "IBM Plex Sans", sans-serif);
+    border-top: 1px solid var(--fg);
+  }
+  @media (min-width: 640px) {
+    .consent-banner {
+      flex-direction: row;
+    }
+  }
+  .consent-banner p {
+    font-size: 0.875rem;
+    margin: 0 0 1rem 0;
+    max-width: 800px;
+  }
+  @media (min-width: 640px) {
+    .consent-banner p {
+      margin: 0 1rem 0 0;
+    }
+  }
+  .consent-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  .consent-actions button {
+    cursor: pointer;
+    border: none;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  #consent-decline {
+    background: transparent;
+    color: var(--bg);
+    opacity: 0.7;
+    text-decoration: underline;
+  }
+  #consent-decline:hover {
+    opacity: 1;
+  }
+  #consent-accept {
+    background: var(--fg);
+    color: var(--bg);
+    border: 0.5px solid var(--fg);
+  }
+  #consent-accept:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--fg);
+  }
+</style>
+
+<script is:inline>
+  document.addEventListener("DOMContentLoaded", () => {
+    const consent = localStorage.getItem("sinpes_consent");
+    const banner = document.getElementById("cookie-consent");
+    const acceptBtn = document.getElementById("consent-accept");
+    const declineBtn = document.getElementById("consent-decline");
+
+    if (!consent) {
+      setTimeout(() => {
+        banner.style.display = "flex";
+      }, 500);
+    } else if (consent === "granted") {
+      enableAds();
+    }
+
+    acceptBtn.addEventListener("click", () => {
+      localStorage.setItem("sinpes_consent", "granted");
+      banner.style.display = "none";
+      enableAds();
+    });
+
+    declineBtn.addEventListener("click", () => {
+      localStorage.setItem("sinpes_consent", "denied");
+      banner.style.display = "none";
+    });
+
+    function enableAds() {
+      window.adsbygoogle = window.adsbygoogle || [];
+      window.adsbygoogle.pauseAdRequests = 0;
+      // In case it needs a nudge
+      window.adsbygoogle.push({});
+    }
+  });
+</script>

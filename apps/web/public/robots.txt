@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Direct crawlers to the sitemap index to discover localized routes
+Sitemap: https://sinpes.com/sitemap-index.xml

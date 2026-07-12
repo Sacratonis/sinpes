@@ -1,0 +1,79 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { languages, defaultLang } from '../../i18n/ui';
+
+export async function getStaticPaths() {
+  const locales = Object.keys(languages).filter(l => l !== defaultLang);
+  return locales.map(l => ({ params: { lang: l } }));
+}
+
+const { lang } = Astro.params;
+const locale = lang as keyof typeof languages;
+
+const content = {
+  es: {
+    title: "Política de Privacidad | Sinpes",
+    h1: "Política de Privacidad",
+    lastUpdated: "Última Actualización: Julio de 2026",
+    p1: "En Sinpes, estamos comprometidos a salvaguardar su privacidad y asegurar la transparencia en nuestras prácticas de procesamiento de datos. Esta Política de Privacidad describe cómo recopilamos, utilizamos y protegemos su información al acceder a nuestro archivo de tipografía y servicios relacionados.",
+    h2_1: "1. Recopilación y Uso de Datos",
+    p2: "Sinpes opera fundamentalmente bajo el principio de minimización de datos. No requerimos la creación de cuentas, y no recopilamos información de identificación personal (PII) durante su navegación estándar o descarga de tipografías. Cualquier dato recopilado se limita estrictamente a telemetría no identificable necesaria para mantener la seguridad, el rendimiento y la funcionalidad de nuestra infraestructura.",
+    h2_2: "2. Cookies y Almacenamiento Local",
+    p3: "Utilizamos mecanismos mínimos de almacenamiento local exclusivamente para mejoras fundamentales de la experiencia del usuario, como conservar su preferencia de Modo Oscuro y gestionar los estados de consentimiento. No empleamos cookies de rastreo para vigilancia entre sitios o perfilado invasivo.",
+    h2_3: "3. Integraciones de Terceros y Analíticas",
+    p4: "Para sostener nuestra iniciativa de código abierto, Sinpes puede integrarse con servicios de terceros selectos, incluido Google AdSense. Estos servicios pueden utilizar cookies para mostrar anuncios basados en sus visitas previas a nuestra plataforma u otros sitios web. Usted mantiene el control total sobre estas preferencias y puede optar por no participar en la publicidad personalizada en cualquier momento a través de los controles estándar de su navegador o diálogos de consentimiento designados.",
+    h2_4: "4. Cumplimiento con GDPR y CCPA",
+    p5: "Nos adherimos a estrictos marcos de protección de datos, incluyendo el Reglamento General de Protección de Datos (GDPR) y la Ley de Privacidad del Consumidor de California (CCPA). Los usuarios situados en jurisdicciones aplicables conservan el derecho de solicitar el acceso o la eliminación de cualquier dato de telemetría asociado inadvertidamente con sus sesiones.",
+    h2_5: "5. Información de Contacto",
+    p6: "Para consultas relacionadas con nuestras prácticas de privacidad o políticas de manejo de datos, comuníquese con nuestro equipo de cumplimiento en privacy@sinpes.com."
+  },
+  pt: {
+    title: "Política de Privacidade | Sinpes",
+    h1: "Política de Privacidade",
+    lastUpdated: "Última Atualização: Julho de 2026",
+    p1: "Na Sinpes, estamos comprometidos em proteger sua privacidade e garantir a transparência em nossas práticas de processamento de dados. Esta Política de Privacidade descreve como coletamos, usamos e protegemos suas informações ao acessar nosso arquivo de tipografia e serviços relacionados.",
+    h2_1: "1. Coleta e Uso de Dados",
+    p2: "A Sinpes opera fundamentalmente sob o princípio da minimização de dados. Não exigimos a criação de contas e não coletamos informações de identificação pessoal (PII) durante sua navegação padrão ou download de tipografias. Quaisquer dados coletados limitam-se estritamente à telemetria não identificável necessária para manter a segurança, o desempenho e a funcionalidade de nossa infraestrutura.",
+    h2_2: "2. Cookies e Armazenamento Local",
+    p3: "Utilizamos mecanismos mínimos de armazenamento local exclusivamente para melhorias essenciais na experiência do usuário, como manter sua preferência de Modo Escuro e gerenciar os estados de consentimento. Não usamos cookies de rastreamento para vigilância entre sites ou perfil invasivo.",
+    h2_3: "3. Integrações de Terceiros e Análises",
+    p4: "Para apoiar nossa iniciativa de código aberto, a Sinpes pode se integrar a serviços de terceiros selecionados, incluindo o Google AdSense. Esses serviços podem usar cookies para exibir anúncios com base em suas visitas anteriores à nossa plataforma ou outros sites. Você mantém o controle total sobre essas preferências e pode cancelar a publicidade personalizada a qualquer momento por meio de controles padrão do navegador ou caixas de diálogo de consentimento designadas.",
+    h2_4: "4. Conformidade com GDPR e CCPA",
+    p5: "Aderimos a rigorosos padrões de proteção de dados, incluindo o Regulamento Geral sobre a Proteção de Dados (GDPR) e a Lei de Privacidade do Consumidor da Califórnia (CCPA). Os usuários situados em jurisdições aplicáveis mantêm o direito de solicitar o acesso ou a exclusão de quaisquer dados de telemetria inadvertidamente associados às suas sessões.",
+    h2_5: "5. Informações de Contato",
+    p6: "Para consultas relacionadas às nossas práticas de privacidade ou políticas de manuseio de dados, entre em contato com nossa equipe de conformidade em privacy@sinpes.com."
+  }
+};
+const c = content[locale as keyof typeof content] || content['es'];
+---
+<Layout title={c.title} description={c.p1} locale={locale}>
+  <main class="view-container legal-page">
+    <h1>{c.h1}</h1>
+    <p class="last-updated">{c.lastUpdated}</p>
+    
+    <p>{c.p1}</p>
+    
+    <h2>{c.h2_1}</h2>
+    <p>{c.p2}</p>
+    
+    <h2>{c.h2_2}</h2>
+    <p>{c.p3}</p>
+    
+    <h2>{c.h2_3}</h2>
+    <p>{c.p4}</p>
+
+    <h2>{c.h2_4}</h2>
+    <p>{c.p5}</p>
+
+    <h2>{c.h2_5}</h2>
+    <p>{c.p6}</p>
+  </main>
+</Layout>
+
+<style>
+  .legal-page { padding: 80px 24px; max-width: 800px; margin: 0 auto; border-left: 0.5px solid var(--rule); border-right: 0.5px solid var(--rule); min-height: 60vh; }
+  h1 { font-size: 48px; margin-bottom: 32px; letter-spacing: -0.02em; font-weight: 500; }
+  h2 { font-size: 12px; margin-top: 48px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  p { font-size: 16px; line-height: 1.7; margin-bottom: 24px; color: var(--fg); max-width: 700px; }
+  .last-updated { font-size: 14px; color: var(--muted); margin-bottom: 48px; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+</style>

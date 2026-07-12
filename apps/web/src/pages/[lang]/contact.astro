@@ -1,0 +1,25 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { languages, defaultLang } from '../../i18n/ui';
+export async function getStaticPaths() {
+  return Object.keys(languages).filter(l => l !== defaultLang).map(l => ({ params: { lang: l } }));
+}
+const { lang } = Astro.params;
+const locale = lang as keyof typeof languages;
+const content = {
+  es: { title: "Contacto | Sinpes", h1: "Contáctenos", p1: "Valoramos los comentarios de la comunidad de diseño.", h2_1: "Consultas Generales", p2: "Para consultas generales, propuestas de asociación o consultas de prensa, dirija su correspondencia a: contact@sinpes.com", h2_2: "DMCA y Licencias", p3: "Si es titular de derechos de autor y cree que una tipografía se ha archivado en violación de su licencia, envíe un aviso formal a legal@sinpes.com." },
+  pt: { title: "Contato | Sinpes", h1: "Fale Conosco", p1: "Valorizamos o feedback da comunidade de design.", h2_1: "Consultas Gerais", p2: "Para perguntas gerais, propostas de parceria ou consultas de imprensa, direcione sua correspondência para: contact@sinpes.com", h2_2: "DMCA e Licenciamento", p3: "Se você for detentor de direitos autorais e acreditar que uma fonte foi arquivada em violação de sua licença, envie um aviso formal para legal@sinpes.com." }
+};
+const c = content[locale] || content['es'];
+---
+<Layout title={c.title} locale={locale}>
+  <main class="view-container legal-page">
+    <h1>{c.h1}</h1><p>{c.p1}</p><h2>{c.h2_1}</h2><p>{c.p2}</p><h2>{c.h2_2}</h2><p>{c.p3}</p>
+  </main>
+</Layout>
+<style>
+  .legal-page { padding: 80px 24px; max-width: 800px; margin: 0 auto; border-left: 0.5px solid var(--rule); border-right: 0.5px solid var(--rule); min-height: 60vh; }
+  h1 { font-size: 48px; margin-bottom: 32px; letter-spacing: -0.02em; font-weight: 500; }
+  h2 { font-size: 12px; margin-top: 48px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  p { font-size: 16px; line-height: 1.7; margin-bottom: 24px; color: var(--fg); max-width: 650px; }
+</style>

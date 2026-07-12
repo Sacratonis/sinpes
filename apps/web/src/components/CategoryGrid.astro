@@ -1,0 +1,23 @@
+---
+import { languages, defaultLang } from '../i18n/ui';
+
+interface Props { 
+  locale?: keyof typeof languages; 
+  categories?: string[]; // Dynamically injected
+}
+
+const { locale = defaultLang, categories = [] } = Astro.props;
+const basePath = locale === defaultLang ? '' : `/${locale}`;
+---
+
+<div class="category-grid" id="categoryGrid">
+  {categories.map(cat => (
+    <a href={`${basePath}/category/${cat.toLowerCase()}`}>{cat}</a>
+  ))}
+</div>
+
+<style>
+  .category-grid { display: flex; flex-wrap: wrap; gap: 0; border: 0.5px solid var(--rule); margin-top: 16px; }
+  .category-grid a { padding: 10px 16px; border-right: 0.5px solid var(--rule); border-bottom: 0.5px solid var(--rule); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); text-decoration: none; }
+  .category-grid a:hover { color: var(--fg); }
+</style>

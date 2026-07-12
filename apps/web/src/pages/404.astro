@@ -1,0 +1,30 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { defaultLang } from '../i18n/ui';
+---
+<Layout title="404 - Page Not Found | Sinpes" description="This glyph hasn't been carved yet." locale={defaultLang}>
+  <main class="error-page view-container">
+    <div class="error-grid">
+      <h1 class="error-code">404</h1>
+      <div class="error-content">
+        <h2>This glyph hasn't been carved yet.</h2>
+        <p>The page you are looking for has been moved, deleted, or perhaps never existed in this typeface.</p>
+        <a href="/" class="btn-return">Return to Archive</a>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .error-page { min-height: 70vh; display: flex; align-items: center; justify-content: center; padding: 80px 24px; border-left: 0.5px solid var(--rule); border-right: 0.5px solid var(--rule); }
+  .error-grid { display: grid; grid-template-columns: auto 1fr; gap: 64px; align-items: center; max-width: 900px; }
+  .error-code { font-size: clamp(120px, 20vw, 240px); font-weight: 800; line-height: 0.8; letter-spacing: -0.05em; color: var(--fg); margin: 0; font-family: 'IBM Plex Sans', sans-serif; }
+  .error-content h2 { font-size: 24px; font-weight: 500; margin: 0 0 16px 0; }
+  .error-content p { font-size: 16px; color: var(--muted); max-width: 400px; line-height: 1.6; margin-bottom: 32px; }
+  .btn-return { display: inline-block; padding: 14px 28px; background: var(--fg); color: var(--bg); text-decoration: none; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; transition: opacity 0.2s; }
+  .btn-return:hover { opacity: 0.8; }
+  @media (max-width: 720px) {
+    .error-grid { grid-template-columns: 1fr; gap: 24px; text-align: center; }
+    .error-content p { margin-left: auto; margin-right: auto; }
+  }
+</style>

@@ -1,0 +1,43 @@
+---
+import { languages, defaultLang } from '../i18n/ui';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  title: string; excerpt: string; date: string; slug: string;
+  category?: string; readTime?: number; locale?: keyof typeof languages;
+}
+const { title, excerpt, date, slug, category, readTime = 4, locale = defaultLang } = Astro.props;
+const t = useTranslations(locale);
+const basePath = locale === defaultLang ? '' : `/${locale}`;
+const categoryLabel = category || t('blog.editorial');
+---
+
+<a href={`${basePath}/blog/${slug}`} class="blog-card">
+  <div class="blog-content">
+    <span class="blog-meta label-upper tabular">{categoryLabel} · {readTime} {t('blog.minRead')}</span>
+    <h2 class="blog-title">{title}</h2>
+    <p class="blog-excerpt">{excerpt}</p>
+  </div>
+  <span class="read-more">{t('card.readMore') || 'Read Article'}</span>
+</a>
+
+<style>
+  .blog-card { padding: 32px 24px; border-right: 0.5px solid var(--rule); border-bottom: 0.5px solid var(--rule); display: flex; flex-direction: column; min-height: 260px; transition: all .15s ease; text-decoration: none; color: inherit; }
+  .blog-card:hover { background: color-mix(in srgb, var(--fg) 3%, transparent); }
+  .blog-card:active { transform: scale(0.99); }
+  .blog-content { flex-grow: 1; display: flex; flex-direction: column; }
+  .blog-meta { margin-bottom: 24px; display: block; color: var(--muted); }
+  .blog-title { font-size: 24px; font-weight: 500; line-height: 1.3; margin: 0; color: var(--fg); }
+  .blog-excerpt { font-size: 14px; color: var(--muted); margin-top: 16px; line-height: 1.5; flex-grow: 1; }
+  
+  .read-more { 
+    font-size: 12px; text-transform: uppercase; letter-spacing: .08em; margin-top: 24px; 
+    font-weight: 500; color: var(--fg); display: flex; align-items: center; 
+  }
+  /* CSS Arrow - Guarantees only ONE arrow and animates it */
+  .read-more::after {
+    content: '→'; display: inline-block; margin-left: 8px;
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .blog-card:hover .read-more::after { transform: translateX(6px); }
+</style>

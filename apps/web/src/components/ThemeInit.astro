@@ -1,0 +1,45 @@
+---
+// strictly an inline script for the <head>
+---
+<script is:inline>
+  const setTheme = () => {
+    const theme = (() => {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+        return localStorage.getItem('theme');
+      }
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
+      return 'light';
+    })();
+    
+    if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+    window.localStorage.setItem('theme', theme);
+  };
+
+  const setLayout = () => {
+    const layout = (() => {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('sinpes-layout');
+        if (saved === 'list' || saved === 'grid') return saved;
+      }
+      // Default to grid layout (the new masonry card design)
+      return 'grid';
+    })();
+    
+    document.documentElement.setAttribute('data-layout', layout);
+    window.localStorage.setItem('sinpes-layout', layout);
+  };
+  
+  setTheme();
+  setLayout();
+  
+  document.addEventListener('astro:after-swap', () => {
+    setTheme();
+    setLayout();
+  });
+</script>

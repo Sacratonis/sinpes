@@ -1,0 +1,35 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import BlogCard from '../../components/BlogCard.astro';
+import { blogPosts } from '../../data/blog';
+import { defaultLang } from '../../i18n/ui';
+import { useTranslations } from '../../i18n/utils';
+
+const t = useTranslations(defaultLang);
+---
+
+<Layout 
+  title={t('blog.title')}
+  description={t('blog.description')}
+  locale={defaultLang}
+>
+  <main class="view-container blog-grid">
+    {blogPosts.length > 0 ? blogPosts.map(post => (
+      <BlogCard title={post.title.en} excerpt={post.excerpt.en} date={post.date} slug={post.slug} locale={defaultLang} />
+    )) : <div class="empty-state">{t('blog.empty')}</div>}
+  </main>
+</Layout>
+
+<style>
+  .view-container {
+    max-width: 1180px;
+    margin: 0 auto;
+    border-left: 0.5px solid var(--rule);
+    border-right: 0.5px solid var(--rule);
+  }
+  .blog-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  }
+  .empty-state { grid-column: 1 / -1; padding: 80px 24px; text-align: center; color: var(--muted); font-size: 14px; }
+</style>

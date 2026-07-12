@@ -1,0 +1,14 @@
+[Unit]
+Description=SINPES Telegram Album Listener
+After=network.target
+
+[Service]
+User=sinpes
+WorkingDirectory=/opt/sinpes/apps/api
+ExecStart=/opt/sinpes/venv/bin/python -m app.ingestion.bot_listener
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

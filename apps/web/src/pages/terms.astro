@@ -1,0 +1,35 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { defaultLang } from '../i18n/ui';
+---
+<Layout title="Terms of Service | Sinpes" description="Terms of service and acceptable use policies." locale={defaultLang}>
+  <main class="view-container legal-page">
+    <h1>Terms of Service</h1>
+    <p class="last-updated">Last Updated: July 2026</p>
+    
+    <p>Welcome to Sinpes. By accessing, browsing, or utilizing our digital typography archive, you agree to be bound by these Terms of Service. Please review these terms carefully, as they govern your relationship with our platform.</p>
+    
+    <h2>1. Acceptance of Terms</h2>
+    <p>Your access to and use of Sinpes is conditioned upon your acceptance of and compliance with these Terms. If you disagree with any part of the terms, you may not access the service.</p>
+    
+    <h2>2. Intellectual Property and Font Licensing</h2>
+    <p>Sinpes operates as a distributor of open-source typefaces. The fonts hosted on our platform remain the intellectual property of their respective creators and foundries. Each typeface is governed by its specific open-source license (such as the SIL Open Font License or Apache 2.0). While you are free to download and use these fonts commercially as permitted by their licenses, you are solely responsible for ensuring your usage complies with the attached licensing terms.</p>
+    
+    <h2>3. Site Content and Copyright</h2>
+    <p>While the fonts are open-source, the proprietary design, architecture, codebase, text, and visual identity of the Sinpes platform itself are protected by copyright and intellectual property laws. Unauthorized reproduction or scraping of our platform's proprietary interface is strictly prohibited.</p>
+    
+    <h2>4. Acceptable Use Policy</h2>
+    <p>You agree not to utilize our infrastructure for malicious purposes, including but not limited to executing denial-of-service (DoS) attacks, automated scraping that circumvents our API limits, or any activity that compromises the integrity and performance of our servers.</p>
+    
+    <h2>5. Modifications to Service</h2>
+    <p>Sinpes reserves the right to modify, suspend, or discontinue any aspect of the service at any time, with or without notice. We shall not be liable to you or any third party for any modification or cessation of the service.</p>
+  </main>
+</Layout>
+
+<style>
+  .legal-page { padding: 80px 24px; max-width: 800px; margin: 0 auto; border-left: 0.5px solid var(--rule); border-right: 0.5px solid var(--rule); min-height: 60vh; }
+  h1 { font-size: 48px; margin-bottom: 32px; letter-spacing: -0.02em; font-weight: 500; }
+  h2 { font-size: 12px; margin-top: 48px; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+  p { font-size: 16px; line-height: 1.7; margin-bottom: 24px; color: var(--fg); max-width: 700px; }
+  .last-updated { font-size: 14px; color: var(--muted); margin-bottom: 48px; font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+</style>

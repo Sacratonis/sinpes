@@ -1,0 +1,178 @@
+---
+import ThemeToggle from './ThemeToggle.astro';
+import SearchBar from './SearchBar.astro';
+import { languages, defaultLang } from '../i18n/ui';
+import { useTranslations, getLanguageUrl } from '../i18n/utils';
+
+interface Props { locale?: keyof typeof languages; }
+const { locale = defaultLang } = Astro.props;
+const t = useTranslations(locale);
+const basePath = locale === defaultLang ? '' : `/${locale}`;
+const currentPath = Astro.url.pathname;
+---
+
+<header class="navbar" id="mainNavbar">
+  <div class="nav-left">
+    <a href={basePath || '/'} class="logo">SINPES</a>
+  </div>
+
+  <div class="nav-center">
+    <a href={basePath || '/'}>{t('nav.library') || 'Library'}</a>
+    <a href={`${basePath}/blog`}>{t('nav.blog') || 'Blog'}</a>
+    <a href={`${basePath}/about`}>{t('nav.about') || 'About'}</a>
+  </div>
+
+  <div class="nav-right">
+    <SearchBar locale={locale} />
+    
+    <div class="lang-dropdown" id="langDropdown">
+      <button class="lang-switch" aria-haspopup="true" aria-expanded="false">{locale.toUpperCase()}</button>
+      <div class="lang-menu">
+        {Object.entries(languages).map(([code, label]) => (
+          <a href={getLanguageUrl(currentPath, locale, code)} class={`lang-item ${locale === code ? 'active' : ''}`}>
+            {label}
+          </a>
+        ))}
+      </div>
+    </div>
+
+    <ThemeToggle />
+
+    <!-- MOBILE HAMBURGER BUTTON -->
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu">
+      <span class="bar"></span><span class="bar"></span>
+    </button>
+  </div>
+
+  <!-- MOBILE FULL-SCREEN DRAWER -->
+  <div class="mobile-drawer" id="mobileDrawer">
+    <nav class="drawer-links">
+      <a href={basePath || '/'}>{t('nav.library') || 'Library'}</a>
+      <a href={`${basePath}/blog`}>{t('nav.blog') || 'Blog'}</a>
+      <a href={`${basePath}/about`}>{t('nav.about') || 'About'}</a>
+      <a href={`${basePath}/contact`}>{t('nav.contact') || 'Contact'}</a>
+    </nav>
+    <div class="drawer-utils">
+      <SearchBar locale={locale} />
+      <div class="drawer-langs">
+        {Object.entries(languages).map(([code, label]) => (
+          <a href={getLanguageUrl(currentPath, locale, code)} class={`lang-item ${locale === code ? 'active' : ''}`}>
+            {label}
+          </a>
+        ))}
+      </div>
+    </div>
+  </div>
+</header>
+
+<style>
+  .navbar { height: var(--nav-h); min-height: 80px; border-bottom: 0.5px solid var(--rule); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 32px; position: sticky; top: 0; background: var(--bg); z-index: 100; }
+  .nav-left { display: flex; justify-content: flex-start; }
+  .logo { font-weight: 800; letter-spacing: .12em; font-size: 24px; text-decoration: none; color: var(--fg); }
+  .nav-center { display: flex; gap: 32px; font-size: 14px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; }
+  .nav-center a { text-decoration: none; color: var(--fg); position: relative; padding: 4px 0; }
+  .nav-center a::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    background: var(--fg);
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .nav-center a:hover::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+  .nav-right { display: flex; justify-content: flex-end; align-items: center; gap: 16px; }
+  
+  .lang-dropdown { position: relative; }
+  .lang-switch { height: 26px; padding: 0 10px; background: transparent; border: 0.5px solid var(--rule); color: var(--fg); font-size: 12px; font-family: inherit; font-weight: 500; cursor: pointer; }
+  .lang-switch:hover, .lang-dropdown.is-open .lang-switch { background: var(--fg); color: var(--bg); }
+  .lang-menu { position: absolute; top: 100%; right: 0; margin-top: -0.5px; background: var(--bg); border: 0.5px solid var(--rule); display: flex; flex-direction: column; min-width: 120px; z-index: 50; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity 0.2s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s cubic-bezier(0.22, 1, 0.36, 1); }
+  .lang-dropdown.is-open .lang-menu { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .lang-item { padding: 10px 16px; font-size: 11px; text-decoration: none; color: var(--muted); border-bottom: 0.5px solid var(--rule); text-transform: uppercase; letter-spacing: 0.08em; }
+  .lang-item:last-child { border-bottom: none; }
+  .lang-item:hover { color: var(--fg); background: color-mix(in srgb, var(--fg) 3%, transparent); }
+  .lang-item.active { color: var(--fg); font-weight: 600; }
+
+  /* MOBILE DRAWER STYLES */
+  .mobile-menu-btn { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 8px; }
+  .bar { width: 20px; height: 1.5px; background: var(--fg); transition: transform 0.3s ease; }
+  .mobile-drawer { display: none; position: fixed; top: var(--nav-h); left: 0; right: 0; bottom: 0; background: var(--bg); z-index: 99; flex-direction: column; padding: 40px 32px; border-top: 0.5px solid var(--rule); overflow-y: auto; }
+  .drawer-links { display: flex; flex-direction: column; gap: 24px; margin-bottom: 48px; }
+  .drawer-links a { font-size: 32px; font-weight: 500; text-decoration: none; color: var(--fg); letter-spacing: -0.02em; }
+  .drawer-utils { display: flex; flex-direction: column; gap: 24px; border-top: 0.5px solid var(--rule); padding-top: 32px; }
+  .drawer-langs { display: flex; gap: 16px; flex-wrap: wrap; }
+
+  @keyframes drawerSlide {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .navbar.is-open .mobile-drawer { display: flex; animation: drawerSlide 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+  .navbar.is-open .bar:first-child { transform: translateY(6.5px) rotate(45deg); }
+  .navbar.is-open .bar:last-child { transform: translateY(-6.5px) rotate(-45deg); }
+
+  @media (max-width: 720px) {
+    .navbar { padding: 0 16px; }
+    .nav-center { display: none; }
+    .nav-right > :not(.mobile-menu-btn):not(:global(.theme-toggle)) { display: none; }
+    .mobile-menu-btn { display: flex; }
+  }
+</style>
+
+<script>
+  // Desktop Dropdown
+  const setupDropdown = () => {
+    const dropdown = document.getElementById('langDropdown');
+    const btn = dropdown?.querySelector('.lang-switch');
+    if (!dropdown || !btn) return;
+
+    const toggleDropdown = (forceClose = false) => {
+      const isOpen = dropdown.classList.contains('is-open');
+      if (forceClose && !isOpen) return;
+      
+      const willOpen = forceClose ? false : !isOpen;
+      dropdown.classList.toggle('is-open', willOpen);
+      btn.setAttribute('aria-expanded', String(willOpen));
+    };
+
+    btn.addEventListener('click', (e) => { 
+      e.stopPropagation(); 
+      toggleDropdown();
+    });
+
+    document.addEventListener('click', (e) => { 
+      if (!dropdown.contains(e.target as Node)) toggleDropdown(true); 
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') toggleDropdown(true);
+    });
+  };
+
+  // Mobile Drawer
+  const setupMobileMenu = () => {
+    const navbar = document.getElementById('mainNavbar');
+    const btn = document.getElementById('mobileMenuBtn');
+    if (!navbar || !btn) return;
+
+    btn.addEventListener('click', () => {
+      const isOpening = !navbar.classList.contains('is-open');
+      navbar.classList.toggle('is-open', isOpening);
+      btn.setAttribute('aria-expanded', String(isOpening));
+      document.body.classList.toggle('no-scroll', isOpening);
+    });
+  };
+
+  const initNav = () => {
+    setupDropdown();
+    setupMobileMenu();
+  };
+
+  initNav();
+  document.addEventListener('astro:page-load', initNav);
+</script>

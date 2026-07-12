@@ -1,0 +1,85 @@
+---
+// Pure UI component, no server-side props needed
+---
+<button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+  <!-- Sun Icon: Hidden in Light Mode, Visible in Dark Mode -->
+  <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="4"></circle>
+    <path d="M12 3v1"></path>
+    <path d="M12 20v1"></path>
+    <path d="M3 12h1"></path>
+    <path d="M20 12h1"></path>
+    <path d="m18.364 5.636-.707.707"></path>
+    <path d="m6.343 17.657-.707.707"></path>
+    <path d="m5.636 5.636.707.707"></path>
+    <path d="m17.657 17.657.707.707"></path>
+  </svg>
+  
+  <!-- Moon Icon: Visible in Light Mode, Hidden in Dark Mode -->
+  <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+  </svg>
+</button>
+
+<style>
+  .theme-toggle {
+    /* Reverted exactly to your original dimensions */
+    width: 32px;
+    height: 26px;
+    border: none;
+    background: var(--fg);
+    color: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .theme-toggle:hover {
+    opacity: 0.8;
+  }
+
+  /* Base states assume Light Mode is default */
+  .sun-icon, .moon-icon {
+    position: absolute;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s ease;
+  }
+  
+  /* Light Mode (Moon active) */
+  .sun-icon { opacity: 0; transform: translateY(10px) rotate(-90deg); }
+  .moon-icon { opacity: 1; transform: translateY(0) rotate(0deg); }
+
+  /* Dark Mode (Sun active) */
+  :global(html[data-theme='dark']) .sun-icon {
+    opacity: 1; transform: translateY(0) rotate(0deg);
+  }
+  :global(html[data-theme='dark']) .moon-icon {
+    opacity: 0; transform: translateY(-10px) rotate(90deg);
+  }
+</style>
+
+<script>
+  // Astro isolates component scripts automatically
+  const handleToggleClick = () => {
+    const html = document.documentElement;
+    const isDark = html.getAttribute('data-theme') === 'dark';
+    const newTheme = isDark ? 'light' : 'dark';
+    
+    html.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+  };
+
+  const initThemeToggle = () => {
+    const toggleBtn = document.getElementById('themeToggle');
+    if (toggleBtn) {
+      toggleBtn.removeEventListener('click', handleToggleClick);
+      toggleBtn.addEventListener('click', handleToggleClick);
+    }
+  };
+
+  initThemeToggle();
+  document.addEventListener('astro:page-load', initThemeToggle);
+</script>

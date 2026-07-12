@@ -1,0 +1,263 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import TestLab from '../../../components/test-lab/TestLab.tsx';
+import { loadFontRegistry } from '../../../content/fonts/loader';
+import { languages, defaultLang } from '../../../i18n/ui';
+import { useTranslations } from '../../../i18n/utils';
+import { sanitizeFontFamily } from '../../../utils/font';
+
+export async function getStaticPaths() {
+  const fonts = await loadFontRegistry();
+  const locales = Object.keys(languages).filter(lang => lang !== defaultLang);
+  return locales.flatMap(lang =>
+    fonts.map(font => ({
+      params: { lang, slug: font.slug },
+      props: { font },
+    }))
+  );
+}
+
+const { lang } = Astro.params;
+const { font } = Astro.props;
+const locale = lang as keyof typeof languages;
+const t = useTranslations(locale);
+const fontFaceCSS = `@font-face { font-family: "${sanitizeFontFamily(font.display_name)}"; src: url(${JSON.stringify(font.woff2_url)}) format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }`;
+---
+
+<Layout
+  title={`Test ${font.display_name} — SINPES`}
+  description={`Interactively test and preview the ${font.display_name} typeface at any size and weight.`}
+  locale={locale}
+>
+  <style is:global set:html={fontFaceCSS}></style>
+
+  <!-- SUBNAV: 3-column grid -->
+  <div class="lab-subnav view-container">
+    <a href={`/${locale}/font/${font.slug}`} class="lab-nav-link">&larr; {t('nav.library')}</a>
+    <span class="lab-nav-center">{font.display_name}</span>
+    <a href={`/${locale}/font/${font.slug}`} class="lab-nav-download">{t('dl.download')}</a>
+  </div>
+
+  <!-- TEST LAB COMPONENT -->
+  <div class="view-container lab-container">
+    <TestLab
+      client:load
+      fontName={font.display_name}
+      fontSlug={font.slug}
+      woff2Url={font.woff2_url}
+      weights={font.weights ? font.weights.map((w: string) => ({ name: w, value: w })) : undefined}
+      translations={{
+        size: t('test.size'),
+        display: t('test.display'),
+        body: t('test.body'),
+        caption: t('test.caption'),
+        specimenDisplay: t('test.specimen.display'),
+        specimenBody: t('test.specimen.body'),
+        specimenCaption: t('test.specimen.caption'),
+      }}
+    />
+  </div>
+
+</Layout>
+
+<style is:global>
+  /* ── SUBNAV ── */
+  .lab-subnav {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    height: 44px;
+    padding: 0 24px;
+    border-bottom: 0.5px solid var(--rule);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .lab-nav-link { color: var(--fg); text-decoration: none; transition: opacity 0.15s; }
+  .lab-nav-link:hover { opacity: 0.5; }
+  .lab-nav-center {
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-align: center;
+    color: var(--muted);
+    font-size: 10px;
+  }
+  .lab-nav-download {
+    text-align: right;
+    color: var(--fg);
+    text-decoration: none;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    font-size: 10px;
+    transition: opacity 0.15s;
+  }
+  .lab-nav-download:hover { opacity: 0.5; }
+
+  /* ── CONTAINER ── */
+  .lab-container { border-top: none; }
+  .lab-wrapper { width: 100%; }
+
+  /* ── STICKY TOOLBAR ── */
+  .lab-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 14px 24px;
+    border-bottom: 0.5px solid var(--rule);
+    background: var(--bg);
+    position: sticky;
+    top: var(--nav-h, 64px);
+    z-index: 10;
+  }
+  .toolbar-group { display: flex; align-items: center; gap: 12px; }
+  .toolbar-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .toolbar-readout {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    min-width: 36px;
+  }
+
+  /* ── SLIDER ── */
+  .lab-slider {
+    appearance: none;
+    width: 160px;
+    height: 1px;
+    background: var(--rule);
+    outline: none;
+    cursor: pointer;
+  }
+  .lab-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 10px; height: 10px;
+    background: var(--fg);
+    border-radius: 0;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .lab-slider::-webkit-slider-thumb:hover { transform: scale(1.4); }
+  .lab-slider::-moz-range-thumb {
+    width: 10px; height: 10px;
+    background: var(--fg);
+    border-radius: 0;
+    border: none;
+    cursor: pointer;
+  }
+
+  /* ── WEIGHT PILLS ── */
+  .weight-pills { display: flex; gap: 6px; }
+  .weight-pill {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 10px;
+    font-family: inherit;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    background: transparent;
+    border: 0.5px solid var(--rule);
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .weight-pill:hover { color: var(--fg); border-color: var(--fg); }
+  .weight-pill.active {
+    background: var(--fg);
+    color: var(--bg);
+    border-color: var(--fg);
+  }
+
+  /* ── LIVE CANVAS ── */
+  .lab-canvas {
+    position: relative;
+    padding: 72px 32px;
+    min-height: 360px;
+    display: flex;
+    align-items: center;
+    border-bottom: 0.5px solid var(--rule);
+    background: color-mix(in srgb, var(--rule) 5%, transparent);
+  }
+  .canvas-hint {
+    position: absolute;
+    top: 20px; left: 32px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .canvas-input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--fg);
+    outline: none;
+    resize: none;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-family: inherit;
+  }
+
+  /* ── SPECIMEN TABLE ── */
+  .specimen-table { display: flex; flex-direction: column; }
+  .specimen-row {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 0;
+    border-bottom: 0.5px solid var(--rule);
+  }
+  .specimen-row:last-child { border-bottom: none; }
+
+  .specimen-meta {
+    padding: 32px 24px;
+    border-right: 0.5px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+  .spec-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .spec-size {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .specimen-text {
+    padding: 32px 32px;
+    color: var(--fg);
+    line-height: 1.3;
+  }
+  .spec-32 { font-size: 32px; line-height: 1.2; }
+  .spec-16 { font-size: 16px; line-height: 1.65; }
+  .spec-12 { font-size: 12px; line-height: 1.6; color: var(--muted); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 720px) {
+    .lab-toolbar { flex-direction: column; align-items: flex-start; gap: 14px; }
+    .lab-slider { width: 100%; }
+    .lab-canvas { padding: 48px 20px; min-height: 240px; }
+    .canvas-hint { left: 20px; }
+    .specimen-row { grid-template-columns: 1fr; }
+    .specimen-meta { border-right: none; border-bottom: 0.5px solid var(--rule); padding: 16px 20px; flex-direction: row; align-items: center; gap: 8px; }
+    .specimen-text { padding: 20px; }
+    .spec-32 { font-size: 22px; }
+  }
+</style>

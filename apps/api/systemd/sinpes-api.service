@@ -1,0 +1,16 @@
+[Unit]
+Description=SINPES FastAPI Backend
+After=network.target
+
+[Service]
+User=sinpes
+WorkingDirectory=/opt/sinpes/apps/api
+ExecStart=/opt/sinpes/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

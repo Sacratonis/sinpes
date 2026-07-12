@@ -1,0 +1,168 @@
+---
+import { languages, defaultLang } from '../i18n/ui';
+import { useTranslations } from '../i18n/utils';
+
+interface Props { 
+  locale?: keyof typeof languages; 
+}
+
+const { locale = defaultLang } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<div class="preview-bar-wrapper view-container">
+  <div class="preview-bar">
+    <div class="preview-input-wrap">
+      <span class="preview-icon">/</span>
+      <input 
+        type="text" 
+        id="globalLivePreview" 
+        class="preview-input" 
+        placeholder={t('controls.previewPlaceholder') || 'Type to preview...'} 
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+    
+    <div class="preview-controls">
+      <button id="previewResetBtn" class="preview-reset" title="Reset to default">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .preview-bar-wrapper {
+    position: sticky;
+    top: calc(var(--nav-h, 64px) + 36px);
+    z-index: 90;
+    background: var(--bg);
+  }
+  .preview-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    border-bottom: 0.5px solid var(--rule);
+    padding: 0 24px;
+  }
+  .preview-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    height: 100%;
+    position: relative;
+  }
+  .preview-icon {
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .preview-input {
+    width: 100%;
+    height: 100%;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--fg);
+    background: transparent;
+    border: none;
+    outline: none;
+  }
+  .preview-input::placeholder {
+    color: var(--muted);
+  }
+  .preview-input-wrap::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    background: var(--fg);
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .preview-input-wrap:focus-within::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+  .preview-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    height: 100%;
+    padding-left: 24px;
+    border-left: 0.5px solid var(--rule);
+  }
+  .preview-reset {
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    transition: color 0.2s, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .preview-reset:hover {
+    color: var(--fg);
+    transform: rotate(-180deg);
+  }
+</style>
+
+<script>
+  const initLivePreview = () => {
+    const input = document.getElementById('globalLivePreview') as HTMLInputElement;
+    const resetBtn = document.getElementById('previewResetBtn');
+    if (!input || !resetBtn) return;
+
+    const originalTextCache = new Map();
+    let isInitialized = false;
+    let frameId: number | null = null;
+    
+    const updatePreviews = (text: string) => {
+      const isDefault = text.trim() === '';
+      const fallbackTextCard = 'Aa';
+      const fallbackTextRow = 'Ag';
+      
+      const cards = document.querySelectorAll('.massive-specimen');
+      const rows = document.querySelectorAll('.row-specimen');
+      
+      cards.forEach(card => {
+        if (!isInitialized && !originalTextCache.has(card)) {
+          originalTextCache.set(card, card.textContent);
+        }
+        card.textContent = isDefault ? fallbackTextCard : text;
+      });
+      
+      rows.forEach(row => {
+        if (!isInitialized && !originalTextCache.has(row)) {
+          originalTextCache.set(row, row.textContent);
+        }
+        row.textContent = isDefault ? fallbackTextRow : text;
+      });
+      
+      isInitialized = true;
+    };
+
+    input.addEventListener('input', (e) => {
+      const val = (e.target as HTMLInputElement).value;
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => updatePreviews(val));
+    });
+
+    resetBtn.addEventListener('click', () => {
+      input.value = '';
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => updatePreviews(''));
+      input.focus();
+    });
+  };
+
+  initLivePreview();
+  document.addEventListener('astro:page-load', initLivePreview);
+</script>

@@ -1,0 +1,60 @@
+---
+import { languages, defaultLang } from '../i18n/ui';
+import { useTranslations } from '../i18n/utils';
+
+interface Props { 
+  locale?: keyof typeof languages; 
+  characters?: string[]; // Dynamic array from backend
+}
+
+const { locale = defaultLang, characters } = Astro.props;
+const t = useTranslations(locale);
+
+// Fallback to a premium extended typography set if backend hasn't sent glyphs yet
+const defaultChars = [
+  'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+  'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z',
+  '0','1','2','3','4','5','6','7','8','9',
+  'Á','É','Í','Ó','Ú','Ý','Ä','Ë','Ï','Ö','Ü','Ÿ','Â','Ê','Î','Ô','Û','Ÿ','Ç','Ñ','ß',
+  '&','@','?','!','*','#','%','€','£','¥','©','®','™'
+];
+
+const chars = characters && characters.length > 0 ? characters : defaultChars;
+---
+
+<div class="char-map">
+  {chars.map((char) => (
+    <button class="char-cell" aria-label={`${t('charmap.copy') || 'Copy'} ${char}`}>{char}</button>
+  ))}
+</div>
+
+<script>
+  const initCharMap = () => {
+    const cells = document.querySelectorAll('.char-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('click', async (e) => {
+        const target = e.target as HTMLElement;
+        const char = target.textContent;
+        if (char) {
+          await navigator.clipboard.writeText(char);
+          const originalBg = target.style.background;
+          const originalColor = target.style.color;
+          target.style.background = 'var(--fg)';
+          target.style.color = 'var(--bg)';
+          setTimeout(() => {
+            target.style.background = originalBg;
+            target.style.color = originalColor;
+          }, 150);
+        }
+      });
+    });
+  };
+  initCharMap();
+  document.addEventListener('astro:page-load', initCharMap);
+</script>
+
+<style>
+  .char-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); border: 0.5px solid var(--rule); border-bottom: none; border-right: none; margin-top: 24px; }
+  .char-cell { height: 40px; display: flex; align-items: center; justify-content: center; border-right: 0.5px solid var(--rule); border-bottom: 0.5px solid var(--rule); font-size: 18px; cursor: pointer; background: transparent; color: var(--fg); padding: 0; border-top: none; border-left: none; font-family: inherit; transition: background 0.1s ease, color 0.1s ease, transform 0.2s ease; }
+  .char-cell:hover { background: var(--fg); color: var(--bg); transform: scale(1.1); z-index: 10; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+</style>
