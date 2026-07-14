@@ -36,9 +36,20 @@ try {
   heroUseCases = String(font.use_cases || '').split(',').filter(Boolean);
 }
 const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseCases.length ? ` for ${heroUseCases.join(', ')}` : ''}`;
+const fontFamily = sanitizeFontFamily(font.display_name);
+const fontFaceCSS = font.woff2_url ? `
+  @font-face {
+    font-family: "${fontFamily}";
+    src: url("${font.woff2_url}") format("woff2");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
+` : '';
 ---
 
 <Layout title={`${font.display_name} | Sinpes`} description={descriptionText} locale={defaultLang}>
+  {fontFaceCSS && <style set:html={fontFaceCSS} />}
 
   <!-- BREADCRUMB SUBNAV -->
   <div class="dl-subnav view-container">
@@ -55,7 +66,7 @@ const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseC
       <!-- HERO SPECIMEN BLOCK -->
       <div class="specimen-hero">
         <div class="specimen-label label-upper">Typeface Specimen</div>
-        <h1 class="specimen-display" transition:name={`specimen-${font.slug}`} style={`font-family: "${sanitizeFontFamily(font.display_name)}", 'IBM Plex Sans', sans-serif`}>{font.display_name}</h1>
+        <h1 class="specimen-display" transition:name={`specimen-${font.slug}`} style={`font-family: "${fontFamily}", 'IBM Plex Sans', sans-serif`}>{font.display_name}</h1>
         <div class="specimen-pangram">
           The quick brown fox jumps over the lazy dog.
         </div>
@@ -68,6 +79,9 @@ const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseC
       {heroImage && (
         <div class="hero-cinema">
           <img src={heroImage} alt={heroAlt} />
+          <span class="hero-font-name" aria-hidden="true" style={`font-family: "${fontFamily}", 'IBM Plex Sans', sans-serif`}>
+            {font.display_name}
+          </span>
         </div>
       )}
 
@@ -218,6 +232,26 @@ const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseC
     display: block;
     filter: saturate(0.92);
   }
+  .hero-cinema::after {
+    content: "";
+    position: absolute;
+    inset: 35% 0 0;
+    z-index: 1;
+    background: linear-gradient(to bottom, transparent, rgb(0 0 0 / 0.68));
+    pointer-events: none;
+  }
+  .hero-font-name {
+    position: absolute;
+    left: 32px;
+    right: 32px;
+    bottom: 28px;
+    z-index: 2;
+    color: #fff;
+    font-size: clamp(42px, 7vw, 96px);
+    line-height: 0.95;
+    overflow-wrap: anywhere;
+    text-shadow: 0 1px 18px rgb(0 0 0 / 0.35);
+  }
 
   /* --- INFO / ABOUT --- */
   .info-block {
@@ -335,6 +369,7 @@ const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseC
     }
     .specimen-display { font-size: clamp(36px, 10vw, 72px); }
     .specimen-hero { padding: 32px 20px; }
+    .hero-font-name { left: 20px; right: 20px; bottom: 20px; font-size: clamp(34px, 11vw, 64px); }
     .info-block, .weights-block, .charmap-block { padding: 24px 20px; }
   }
 </style>
