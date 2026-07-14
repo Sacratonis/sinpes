@@ -70,10 +70,18 @@ const basePath = locale === defaultLang ? '/' : `/${locale}/`;
     function filterItems(query: string) {
       const items = document.querySelectorAll<HTMLElement>('.font-item[data-font-search]');
       const tokens = normalize(query).split(/\s+/).filter(Boolean);
+      const indexedItems = [...items].map(item => ({
+        item,
+        words: normalize(item.dataset.fontSearch || '').split(/\s+/).filter(Boolean),
+      }));
+      const hasExactResult = tokens.length > 0 && indexedItems.some(({ words }) =>
+        tokens.every(token => words.includes(token))
+      );
       let visibleCount = 0;
-      items.forEach(item => {
-        const index = normalize(item.dataset.fontSearch || '');
-        const matches = tokens.every(token => index.includes(token));
+      indexedItems.forEach(({ item, words }) => {
+        const matches = tokens.length === 0 || tokens.every(token =>
+          hasExactResult ? words.includes(token) : words.some(word => word.startsWith(token))
+        );
         item.hidden = !matches;
         if (matches) visibleCount += 1;
       });
