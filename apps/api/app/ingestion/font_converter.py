@@ -1,9 +1,27 @@
 import re
 import io
 import copy
+import unicodedata
 from fontTools.ttLib import TTFont
 
-def resolve_display_name(font: TTFont) -> tuple[str, bool]:
+def normalize_display_name(raw_name: str, fallback_slug: str = "") -> str:
+    """Turn noisy internal font metadata into a professional family name."""
+    name = unicodedata.normalize("NFKC", raw_name or "").strip()
+    name = name.replace("_", " ")
+    name = re.sub(r"\s+", " ", name)
+    name = re.sub(r"(?i)\s+letters?\s*\d+\s*[x×х]\s*\d+\s*$", "", name)
+    name = re.sub(r"(?i)\s+(regular|normal|roman)\s*$", "", name)
+    name = re.sub(r"(?i)\s+(font|typeface)\s*$", "", name)
+    name = re.sub(r"\s*[-–—]+\s*$", "", name).strip()
+
+    if not name or name.lower() == "untitled" or len(name) > 80:
+        name = fallback_slug.replace("_", " ").replace("-", " ").strip().title()
+    if name.islower():
+        name = name.title()
+    return name
+
+
+def resolve_display_name(font: TTFont, fallback_slug: str = "") -> tuple[str, bool]:
     name_table = font['name']
     
     # Prioritizes Name ID 16 (Typographic Family), falls back to Name ID 1
@@ -16,6 +34,7 @@ def resolve_display_name(font: TTFont) -> tuple[str, bool]:
     # Match both "Demo Font" (word boundary) and "FontDemo" (concatenated suffix)
     is_demo = bool(re.search(r'demo', raw_name, re.IGNORECASE))
     clean_name = re.sub(r'\s*demo\s*', '', raw_name, flags=re.IGNORECASE).strip()
+    clean_name = normalize_display_name(clean_name, fallback_slug)
 
     return clean_name, is_demo
 

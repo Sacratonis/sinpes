@@ -60,7 +60,7 @@ const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseC
       <!-- HERO SPECIMEN BLOCK -->
       <div class="specimen-hero">
         <div class="specimen-label label-upper">Typeface Specimen</div>
-        <div class="specimen-display" transition:name={`specimen-${font.slug}`} style={`font-family: "${sanitizeFontFamily(font.display_name)}", 'IBM Plex Sans', sans-serif`}>{font.display_name}</div>
+        <h1 class="specimen-display" transition:name={`specimen-${font.slug}`} style={`font-family: "${sanitizeFontFamily(font.display_name)}", 'IBM Plex Sans', sans-serif`}>{font.display_name}</h1>
         <div class="specimen-pangram" transition:name={`text-${font.slug}`}>
           The quick brown fox jumps over the lazy dog.
         </div>
@@ -80,22 +80,19 @@ const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseC
             loading="lazy"
             decoding="async"
           />
-          <div class="hero-cinema-overlay">
-            <span class="hero-cinema-name">{font.display_name}</span>
-          </div>
         </div>
       )}
 
       <!-- ABOUT SECTION -->
       <div class="info-block">
-        <div class="label-upper block-label">{t('footer.about')}</div>
+        <h2 class="label-upper block-label">{t('footer.about')}</h2>
         <p class="info-text">{descriptionText}</p>
       </div>
 
       <!-- WEIGHT SPECIMENS -->
       {font.weights && font.weights.length > 0 && (
         <div class="weights-block">
-          <div class="label-upper block-label">{t('dl.weights')}</div>
+          <h2 class="label-upper block-label">{t('dl.weights')}</h2>
           {font.weights.map((w: any) => (
             <div class="weight-specimen-row">
               <span class="weight-name tabular">{w}</span>
@@ -109,7 +106,7 @@ const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseC
 
       <!-- CHARACTER MAP -->
       <div class="charmap-block">
-        <div class="label-upper block-label">Character Set</div>
+        <h2 class="label-upper block-label">Character Set</h2>
         <CharacterMap locale={locale} />
       </div>
 
@@ -203,6 +200,7 @@ const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseC
     letter-spacing: -0.03em;
     color: var(--fg);
     margin-bottom: 32px;
+    margin-top: 0;
   }
   .specimen-pangram {
     font-size: clamp(14px, 2vw, 18px);
@@ -231,29 +229,7 @@ const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseC
     height: 100%;
     object-fit: cover;
     display: block;
-    opacity: 0.75;
-    filter: saturate(0.9) brightness(0.85);
-  }
-  .hero-cinema-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      to top,
-      rgba(0, 0, 0, 0.72) 0%,
-      rgba(0, 0, 0, 0.18) 55%,
-      rgba(0, 0, 0, 0.08) 100%
-    );
-    display: flex;
-    align-items: flex-end;
-    padding: 32px 36px;
-  }
-  .hero-cinema-name {
-    font-size: clamp(28px, 5vw, 64px);
-    font-weight: 500;
-    color: #ffffff;
-    letter-spacing: 0.04em;
-    line-height: 1;
-    text-shadow: 0 2px 16px rgba(0,0,0,0.5);
+    filter: saturate(0.92);
   }
 
   /* --- INFO / ABOUT --- */
@@ -261,7 +237,7 @@ const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseC
     padding: 32px;
     border-bottom: 0.5px solid var(--rule);
   }
-  .block-label { margin-bottom: 16px; }
+  .block-label { margin: 0 0 16px; font-size: 10px; }
   .info-text {
     font-size: 14px;
     line-height: 1.7;

@@ -2,6 +2,7 @@
 import { languages, defaultLang } from '../i18n/ui';
 import { useTranslations } from '../i18n/utils';
 import { sanitizeFontFamily } from '../utils/font';
+import { formatTaxonomyLabel, parseUseCases } from '../utils/taxonomy';
 
 interface Props {
   index: number;
@@ -15,37 +16,8 @@ const t = useTranslations(locale);
 const basePath = locale === defaultLang ? '' : `/${locale}`;
 
 // --- 🧹 BULLETPROOF TAG PARSER & FORMATTER ---
-let rawTags: string[] = [];
-if (font.use_cases) {
-  try {
-    // 1. Try to parse it as a JSON array (e.g. '["coding", "terminal"]')
-    const parsed = JSON.parse(font.use_cases);
-    if (Array.isArray(parsed)) {
-      rawTags = parsed;
-    } else {
-      rawTags = font.use_cases.split(',');
-    }
-  } catch (e) {
-    // 2. Fallback: Split by comma if it's just a normal string
-    rawTags = font.use_cases.split(',');
-  }
-}
-
-const preservedAcronyms = new Set(['UI', 'UX', 'AI', 'AR', 'VR', '3D']);
-const formatLabel = (value: string) => value
-  .replace(/-/g, ' ')
-  .replace(/\S+/g, (word) => {
-    const upper = word.toUpperCase();
-    if (preservedAcronyms.has(upper)) return upper;
-    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-  });
-
-// 3. Clean up symbols and apply Title Case while preserving acronyms.
-const tags = rawTags.map((tag: string) => {
-  const cleanTag = tag.replace(/[\[\]"]+/g, '').trim();
-  return formatLabel(cleanTag);
-});
-const categoryLabel = formatLabel(font.category || '');
+const tags = parseUseCases(font.use_cases).map(formatTaxonomyLabel);
+const categoryLabel = formatTaxonomyLabel(font.category || '');
 // ---------------------------------------------
 
 const paddedIndex = String(index).padStart(2, '0');
@@ -130,11 +102,6 @@ const fontFaceCSS = fontSrc ? `
   }
   
   .font-reveal {
-    opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .font-reveal.is-visible {
     opacity: 1;
     transform: translateY(0);
   }
@@ -273,29 +240,9 @@ const fontFaceCSS = fontSrc ? `
     }
     .row-specimen { display: none; }
     .row-name { font-size: 20px; }
+    .row-main { min-width: 0; }
+    .name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .row-actions { padding: 0 12px; gap: 8px; }
     .btn { height: 44px; padding: 0 14px; font-size: 10px; }
   }
 </style>
-
-<script>
-  const initObserver = () => {
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible');
-          observer.unobserve(entry.target);
-        }
-      });
-    }, {
-      threshold: 0.1,
-      rootMargin: "0px 0px -30px 0px"
-    });
-
-    const hiddenElements = document.querySelectorAll('.font-reveal:not(.is-visible)');
-    hiddenElements.forEach((el) => observer.observe(el));
-  };
-
-  initObserver();
-  document.addEventListener('astro:page-load', initObserver);
-</script>

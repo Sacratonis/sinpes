@@ -35,30 +35,20 @@ const t = translations[locale] || translations.en;
     width: 100%;
     background-color: var(--fg);
     color: var(--bg);
-    padding: 1rem 2rem;
+    padding: 12px 20px;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     justify-content: space-between;
     align-items: center;
     z-index: 9999;
-    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.1);
     font-family: var(--font-body, "IBM Plex Sans", sans-serif);
-    border-top: 1px solid var(--fg);
-  }
-  @media (min-width: 640px) {
-    .consent-banner {
-      flex-direction: row;
-    }
+    border-top: 0.5px solid var(--rule);
+    gap: 16px;
   }
   .consent-banner p {
     font-size: 0.875rem;
-    margin: 0 0 1rem 0;
+    margin: 0;
     max-width: 800px;
-  }
-  @media (min-width: 640px) {
-    .consent-banner p {
-      margin: 0 1rem 0 0;
-    }
   }
   .consent-actions {
     display: flex;
@@ -90,6 +80,23 @@ const t = translations[locale] || translations.en;
   #consent-accept:hover {
     transform: translate(-2px, -2px);
     box-shadow: 4px 4px 0 var(--fg);
+  }
+  @media (max-width: 639px) {
+    .consent-banner {
+      align-items: flex-start;
+      padding: 12px 16px;
+    }
+    .consent-banner p {
+      font-size: 12px;
+      line-height: 1.35;
+      flex: 1;
+    }
+    .consent-actions {
+      flex-direction: column-reverse;
+      gap: 4px;
+      flex: 0 0 auto;
+    }
+    .consent-actions button { padding: 4px 8px; font-size: 12px; }
   }
 </style>
 

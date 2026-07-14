@@ -7,7 +7,7 @@ const t = useTranslations(locale);
 const basePath = locale === defaultLang ? '/' : `/${locale}/`;
 ---
 
-<form id="search-form" class="search-container" action={basePath} method="get">
+<form class="search-container" action={basePath} method="get" data-empty-label={t('search.empty')}>
   <input class="search-box" type="search" name="q" placeholder={t('search.placeholder') || 'Search fonts...'} />
 </form>
 
@@ -43,39 +43,85 @@ const basePath = locale === defaultLang ? '/' : `/${locale}/`;
   }
 </style>
 
+<style is:global>
+  .search-empty {
+    grid-column: 1 / -1;
+    padding: 80px 24px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>
+
 <script>
   const initSearch = () => {
-    const searchBoxes = document.querySelectorAll('.search-box');
+    const searchBoxes = document.querySelectorAll<HTMLInputElement>('.search-box');
+    const searchForms = document.querySelectorAll<HTMLFormElement>('.search-container');
     const params = new URLSearchParams(window.location.search);
-    const initialQuery = params.get('q');
-    
-    // Targets .font-item — the wrapper used by FontItem.astro.
-    // Works from any page, including /blog, because:
-    //  - If font items are present (archive pages), it filters inline.
-    //  - If no font items exist (e.g. blog), the form submit navigates to the archive.
+    const initialQuery = params.get('q') || '';
+
+    const normalize = (value: string) => value
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+
     function filterItems(query: string) {
-      const items = document.querySelectorAll('.font-item');
+      const items = document.querySelectorAll<HTMLElement>('.font-item[data-font-search]');
+      const tokens = normalize(query).split(/\s+/).filter(Boolean);
+      let visibleCount = 0;
       items.forEach(item => {
-        const text = item.textContent?.toLowerCase() || '';
-        (item as HTMLElement).style.display = (!query || text.includes(query)) ? '' : 'none';
+        const index = normalize(item.dataset.fontSearch || '');
+        const matches = tokens.every(token => index.includes(token));
+        item.hidden = !matches;
+        if (matches) visibleCount += 1;
       });
+
+      const list = document.querySelector<HTMLElement>('.font-list');
+      let empty = list?.querySelector<HTMLElement>('.search-empty');
+      if (list && items.length > 0 && tokens.length > 0 && visibleCount === 0) {
+        if (!empty) {
+          empty = document.createElement('div');
+          empty.className = 'search-empty';
+          empty.textContent = searchForms[0]?.dataset.emptyLabel || '';
+          list.appendChild(empty);
+        }
+        empty.hidden = false;
+      } else if (empty) {
+        empty.hidden = true;
+      }
+      return items.length;
     }
 
-    if (initialQuery) {
-      searchBoxes.forEach(box => {
-        (box as HTMLInputElement).value = initialQuery;
-      });
-      filterItems(initialQuery.toLowerCase().trim());
-    }
+    searchBoxes.forEach(box => { box.value = initialQuery; });
+    filterItems(initialQuery);
 
     searchBoxes.forEach(box => {
+      if (box.dataset.initialized === 'true') return;
+      box.dataset.initialized = 'true';
       box.addEventListener('input', (e) => {
-        const query = (e.target as HTMLInputElement).value.toLowerCase().trim();
-        const hasItems = document.querySelectorAll('.font-item').length > 0;
-        if (hasItems) {
+        const query = (e.target as HTMLInputElement).value;
+        searchBoxes.forEach(other => { if (other !== e.target) other.value = query; });
+        if (filterItems(query) > 0) {
+          const url = new URL(window.location.href);
+          if (query.trim()) url.searchParams.set('q', query.trim());
+          else url.searchParams.delete('q');
+          history.replaceState({}, '', url);
+        }
+      });
+    });
+
+    searchForms.forEach(form => {
+      if (form.dataset.initialized === 'true') return;
+      form.dataset.initialized = 'true';
+      form.addEventListener('submit', (event) => {
+        const input = form.querySelector<HTMLInputElement>('.search-box');
+        const query = input?.value || '';
+        if (document.querySelectorAll('.font-item[data-font-search]').length > 0) {
+          event.preventDefault();
           filterItems(query);
         }
-        // If not on an archive page, the form submit will navigate to the font archive
       });
     });
   };

@@ -7,7 +7,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from app.schemas.ingestion import FontIngestionPayload
-from app.ingestion.channel_listener import queue_incoming_upload
+from app.ingestion.channel_listener import find_mergeable_family_uploads, queue_incoming_upload
 
 
 VALID_METADATA = {
@@ -101,6 +101,31 @@ class FontIngestionPayloadTests(unittest.TestCase):
 
         self.assertEqual(queued, incoming)
         self.assertEqual(queued.slug, "example-sans")
+
+    def test_split_telegram_albums_merge_into_one_queue_item(self):
+        connection = sqlite3.connect(":memory:")
+        connection.row_factory = sqlite3.Row
+        connection.execute(
+            """CREATE TABLE upload_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, file_path TEXT NOT NULL,
+                text_payload TEXT NOT NULL, image_path TEXT NOT NULL, received_at TEXT NOT NULL,
+                processed BOOLEAN NOT NULL DEFAULT 0, attempts INTEGER DEFAULT 0,
+                last_error TEXT, failed INTEGER DEFAULT 0
+            )"""
+        )
+        first_files = [f"/tmp/inter-{index}.otf" for index in range(10)]
+        first = FontIngestionPayload.from_telegram_caption(json.dumps({**VALID_METADATA, "slug": "inter"}), first_files)
+        queue_incoming_upload(connection, first)
+        matches = find_mergeable_family_uploads(connection, "inter")
+        all_files = first_files + [f"/tmp/inter-{index}.otf" for index in range(10, 18)]
+        combined = first.model_copy(update={"font_files": all_files})
+        result = queue_incoming_upload(connection, combined, [row["id"] for row in matches])
+
+        rows = connection.execute("SELECT text_payload FROM upload_queue").fetchall()
+        connection.close()
+        self.assertTrue(result["merged"])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(len(json.loads(rows[0]["text_payload"])["font_files"]), 18)
 
     def test_invalid_caption_is_rejected_before_queueing(self):
         invalid = {**VALID_METADATA, "description": "Too short"}

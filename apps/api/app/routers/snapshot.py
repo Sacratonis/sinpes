@@ -79,7 +79,7 @@ def export_blog_snapshot() -> str:
             if lang in grouped[slug]['title']:
                 grouped[slug]['title'][lang] = row['title'] or ''
                 grouped[slug]['excerpt'][lang] = row['meta_description'] or ''
-                grouped[slug]['content'][lang] = row['body_markdown'] or ''
+                grouped[slug]['content'][lang] = row['body_html'] or row['body_markdown'] or ''
                 
         return json.dumps(list(grouped.values()), ensure_ascii=False, separators=(',', ':'))
     finally:

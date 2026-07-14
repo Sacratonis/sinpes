@@ -45,7 +45,7 @@ const currentPath = Astro.url.pathname;
   </div>
 
   <!-- MOBILE FULL-SCREEN DRAWER -->
-  <div class="mobile-drawer" id="mobileDrawer">
+  <div class="mobile-drawer" id="mobileDrawer" inert>
     <nav class="drawer-links">
       <a href={basePath || '/'}>{t('nav.library') || 'Library'}</a>
       <a href={`${basePath}/blog`}>{t('nav.blog') || 'Blog'}</a>
@@ -117,10 +117,14 @@ const currentPath = Astro.url.pathname;
   .navbar.is-open .bar:last-child { transform: translateY(-6.5px) rotate(-45deg); }
 
   @media (max-width: 720px) {
-    .navbar { padding: 0 16px; }
+    .navbar { padding: 0 16px; grid-template-columns: 1fr auto; min-height: 64px; height: 64px; }
+    .logo { font-size: 21px; }
     .nav-center { display: none; }
-    .nav-right > :not(.mobile-menu-btn):not(:global(.theme-toggle)) { display: none; }
+    .nav-right { gap: 12px; }
+    .nav-right > :global(.search-container),
+    .nav-right > .lang-dropdown { display: none; }
     .mobile-menu-btn { display: flex; }
+    .mobile-drawer { top: 64px; }
   }
 </style>
 
@@ -164,6 +168,8 @@ const currentPath = Astro.url.pathname;
       const isOpening = !navbar.classList.contains('is-open');
       navbar.classList.toggle('is-open', isOpening);
       btn.setAttribute('aria-expanded', String(isOpening));
+      const drawer = document.getElementById('mobileDrawer');
+      drawer?.toggleAttribute('inert', !isOpening);
       document.body.classList.toggle('no-scroll', isOpening);
     });
   };

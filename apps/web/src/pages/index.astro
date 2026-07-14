@@ -6,14 +6,13 @@ import PreviewBar from "../components/PreviewBar.astro";
 import { loadFontRegistry } from "../content/fonts/loader";
 import { defaultLang } from "../i18n/ui";
 import { useTranslations } from "../i18n/utils";
+import { uniqueCategoryLabels } from "../utils/taxonomy";
 
 const fonts = await loadFontRegistry();
 const t = useTranslations(defaultLang);
 
 // 🌟 DYNAMIC CATEGORIES: Extracts only the categories that actually exist in the DB
-const uniqueCategories = [...new Set(fonts.map((f) => f.category))].filter(
-  Boolean,
-);
+const uniqueCategories = uniqueCategoryLabels(fonts.map((f) => f.category));
 ---
 
 <Layout

@@ -2,6 +2,7 @@
 import FontRow from './FontRow.astro';
 import FontCard from './FontCard.astro';
 import { languages, defaultLang } from '../i18n/ui';
+import { parseUseCases } from '../utils/taxonomy';
 
 interface Props {
   index: number;
@@ -10,9 +11,15 @@ interface Props {
 }
 
 const { index, locale = defaultLang, font } = Astro.props;
+const searchValue = [
+  font.display_name,
+  font.slug,
+  font.category,
+  ...parseUseCases(font.use_cases),
+].filter(Boolean).join(' ');
 ---
 
-<div class="font-item">
+<div class="font-item" data-font-search={searchValue}>
   <div class="font-view-list">
     <FontRow index={index} locale={locale} font={font} />
   </div>

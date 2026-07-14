@@ -10,6 +10,7 @@ class BlogPost(BaseModel):
     slug: Optional[str] = None
     meta_description: Optional[str] = None
     body_markdown: Optional[str] = None
+    body_html: Optional[str] = None
     image_url: Optional[str] = None
     image_alt_text: Optional[str] = None
     status: str

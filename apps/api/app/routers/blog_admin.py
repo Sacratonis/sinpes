@@ -1,9 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-import urllib.request
 from app.db.database import get_db
 from app.core.security import verify_build_secret
-from app.core.config import config
-import time
+from app.services.deployment_manager import snapshot_hash, trigger_deployment
 
 router = APIRouter(prefix="/blog")
 
@@ -29,14 +27,12 @@ def publish_blog_post(slug: str, _ = Depends(verify_build_secret)):
             conn.commit()
             return {"status": "published_locally", "message": "Saved, but a build is currently running. Deploy will happen in next batch."}
 
-        # Set lock and trigger build
-        m_repo.set_value('build_in_progress', 'true')
-        m_repo.set_value('last_build_triggered_at', str(time.time()))
         conn.commit()
 
-    from app.routers.snapshot import export_blog_snapshot
+    from app.routers.snapshot import export_blog_snapshot, export_snapshot
     from app.ingestion.storage_archive import upload_to_r2
     blog_json = export_blog_snapshot()
+    font_json = export_snapshot()
     upload_to_r2(
         data=blog_json.encode('utf-8'),
         key="build-artifacts/blog-registry.snapshot.json",
@@ -44,8 +40,15 @@ def publish_blog_post(slug: str, _ = Depends(verify_build_secret)):
         cache_control="no-cache"
     )
 
-    if config.CF_PAGES_DEPLOY_HOOK_URL:
-        req = urllib.request.Request(config.CF_PAGES_DEPLOY_HOOK_URL, method="POST")
-        urllib.request.urlopen(req)
+    with get_db() as conn:
+        decision = trigger_deployment(
+            conn,
+            artifact_hash=snapshot_hash(font_json, blog_json),
+            source="blog_admin",
+            automatic=False,
+        )
 
-    return {"status": "published_and_building"}
+    return {
+        "status": "published_and_building" if decision.triggered else "published_locally",
+        "reason": decision.reason,
+    }

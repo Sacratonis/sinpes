@@ -5,11 +5,11 @@ import FontItem from '../../components/FontItem.astro';
 import { loadFontRegistry } from '../../content/fonts/loader';
 import { defaultLang } from '../../i18n/ui';
 import { useTranslations } from '../../i18n/utils';
+import { categorySlug, uniqueCategoryLabels } from '../../utils/taxonomy';
 
 export async function getStaticPaths() {
-  const categorySlug = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const fonts = await loadFontRegistry();
-  const categories = [...new Set(fonts.map(font => font.category).filter(Boolean))];
+  const categories = uniqueCategoryLabels(fonts.map(font => font.category));
   return categories.map(categoryName => ({
     params: { slug: categorySlug(categoryName) },
     props: {

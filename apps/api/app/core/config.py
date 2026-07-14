@@ -11,18 +11,25 @@ class OracleSettings(BaseSettings):
     gemini_api_key: Optional[str] = Field(default=None, validation_alias="GEMINI_ORACLE_API_KEY")
     gemini_model: str = Field(default="gemini-flash-latest", validation_alias="GEMINI_ORACLE_MODEL")
     gemini_enrichment: bool = Field(default=True, validation_alias="ORACLE_GEMINI_ENRICHMENT")
+    gemini_discovery: bool = Field(default=True, validation_alias="ORACLE_GEMINI_DISCOVERY")
+    groq_api_key: Optional[str] = Field(default=None, validation_alias="GROQ_ORACLE_API_KEY")
+    groq_model: str = Field(default="openai/gpt-oss-20b", validation_alias="GROQ_ORACLE_MODEL")
+    font_metadata_model: str = Field(default="openai/gpt-oss-20b", validation_alias="GROQ_FONT_MODEL")
     scrape_start_hour_utc: int = Field(default=21, validation_alias="ORACLE_SCRAPE_START_HOUR_UTC")
     briefing_hour_utc: int = Field(default=10, validation_alias="ORACLE_BRIEFING_HOUR_UTC")
     pinterest_access_token: Optional[str] = Field(default=None, validation_alias="PINTEREST_ACCESS_TOKEN")
-    pinterest_regions: str = Field(default="US,GB,CA", validation_alias="PINTEREST_REGIONS")
+    pinterest_enabled: bool = Field(default=False, validation_alias="ORACLE_PINTEREST_ENABLED")
+    pinterest_regions: str = Field(default="US,GB+IE,CA", validation_alias="PINTEREST_REGIONS")
     bing_webmaster_api_key: Optional[str] = Field(default=None, validation_alias="BING_WEBMASTER_API_KEY")
     yandex_wordstat_token: Optional[str] = Field(default=None, validation_alias="YANDEX_WORDSTAT_TOKEN")
+    yandex_enabled: bool = Field(default=False, validation_alias="ORACLE_YANDEX_ENABLED")
 
 class WriterSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     telegram_bot_token: Optional[str] = Field(default=None, validation_alias="TELEGRAM_WRITER_BOT_TOKEN")
     telegram_review_channel_id: Optional[str] = Field(default=None, validation_alias="TELEGRAM_WRITER_REVIEW_CHANNEL_ID")
     gemini_api_key: Optional[str] = Field(default=None, validation_alias="GEMINI_WRITER_API_KEY")
+    groq_model: str = Field(default="openai/gpt-oss-120b", validation_alias="GROQ_WRITER_MODEL")
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -47,6 +54,9 @@ class Settings(BaseSettings):
 
     # --- CLOUDFLARE PAGES ---
     CF_PAGES_DEPLOY_HOOK_URL: str = Field(validation_alias="CF_PAGES_DEPLOY_HOOK_URL")
+    DEPLOY_MONTHLY_LIMIT: int = Field(default=80, validation_alias="DEPLOY_MONTHLY_LIMIT")
+    DEPLOY_MANUAL_COOLDOWN_SECONDS: int = Field(default=900, validation_alias="DEPLOY_MANUAL_COOLDOWN_SECONDS")
+    DEPLOY_STALE_LOCK_SECONDS: int = Field(default=21600, validation_alias="DEPLOY_STALE_LOCK_SECONDS")
 
     # --- SECURITY & INFRA ---
     BUILD_SECRET: str = Field(validation_alias="BUILD_SECRET")
@@ -61,6 +71,7 @@ class Settings(BaseSettings):
     
     # --- PIPELINE CADENCE ---
     QUEUE_INTERVAL_MINUTES: int = Field(default=30, validation_alias="QUEUE_INTERVAL_MINUTES")
+    QUEUE_POLL_SECONDS: int = Field(default=5, validation_alias="QUEUE_POLL_SECONDS")
     ARTICLE_QUEUE_INTERVAL_MINUTES: int = Field(default=720, validation_alias="ARTICLE_QUEUE_INTERVAL_MINUTES")
     MAX_RETRIES: int = Field(default=3)
 

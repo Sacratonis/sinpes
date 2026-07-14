@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 def send_telegram_alert(message: str) -> None:
     """
-    Posts a message to TELEGRAM_MAIN_CHANNEL_ID via the Bot API sendMessage endpoint.
+    Sends a private message to each non-bot administrator of TELEGRAM_MAIN_CHANNEL_ID.
 
     Uses the Oracle bot token since the Oracle bot is the one listening in the
     main ingestion channel. Synchronous requests.post — safe to call from

@@ -4,19 +4,21 @@ import asyncio
 import logging
 import os
 import re
-from collections import defaultdict
 
 from pydantic import ValidationError
 from telethon import TelegramClient, events
 
 from app.core.config import config
 from app.db.database import get_db
-from app.ingestion.channel_listener import queue_incoming_upload
+from app.ingestion.channel_listener import find_mergeable_family_uploads, queue_incoming_upload
+from app.ingestion.metadata_generator import extract_font_facts, generate_ingestion_payload
 from app.schemas.ingestion import FontIngestionPayload
+from app.services.telegram_notify import send_telegram_alert
 
 
 logger = logging.getLogger("sinpes.telegram_listener")
 DOWNLOAD_DIR = os.getenv("TELEGRAM_DOWNLOAD_DIR", "/tmp/sinpes_uploads")
+FAMILY_COLLECTION_WINDOW_SECONDS = 15
 
 
 def get_family_root(filename: str) -> str:
@@ -50,6 +52,17 @@ def create_client() -> TelegramClient:
 
 
 def register_handlers(client: TelegramClient) -> None:
+    pending_family_batches = {}
+
+    async def notify_curator(event, message: str) -> None:
+        if event.sender_id and event.sender_id != event.chat_id:
+            try:
+                await client.send_message(event.sender_id, message)
+                return
+            except Exception:
+                logger.exception("Could not send ingestion status to the uploading administrator")
+        await asyncio.get_running_loop().run_in_executor(None, send_telegram_alert, message)
+
     async def require_channel_admin(event) -> bool:
         try:
             permissions = await client.get_permissions(
@@ -63,12 +76,32 @@ def register_handlers(client: TelegramClient) -> None:
             await event.reply("This bot is limited to SINPES channel administrators.")
         return allowed
 
+    async def require_ingestion_author(event) -> bool:
+        if event.chat_id != config.TELEGRAM_MAIN_CHANNEL_ID:
+            return False
+        # Broadcast-channel posts may be authored as the channel itself, so no
+        # individual administrator ID is exposed. The configured private
+        # channel remains the authorization boundary for those posts.
+        if event.sender_id == event.chat_id:
+            return True
+        try:
+            permissions = await client.get_permissions(
+                config.TELEGRAM_MAIN_CHANNEL_ID,
+                event.sender_id,
+            )
+            allowed = bool(permissions.is_admin or permissions.is_creator)
+        except Exception:
+            allowed = False
+        if not allowed:
+            await notify_curator(event, "This bot is limited to SINPES channel administrators.")
+        return allowed
+
     @client.on(events.NewMessage(func=lambda event: event.is_private, pattern=r"^/start$"))
     async def handle_start(event):
         if not await require_channel_admin(event):
             return
         await event.reply(
-            "SINPES bot is ready. Send one album with one font family and one JSON file. "
+            "SINPES bot is ready. Send only the font files for one family. Large Telegram-split albums are joined automatically. "
             "Use /help to see every command."
         )
 
@@ -81,15 +114,17 @@ def register_handlers(client: TelegramClient) -> None:
             "/categories_pending\n/category_confirm <id>\n/category_decline <id>\n"
             "/publish\n/publish_status\n/publish_force\n/unpublish <slug>\n"
             "/erase <slug>\n/erase_confirm <slug>\n/hitlist\n"
-            "/oracle_status\n/oracle_run"
+            "/poster_regenerate <slug>\n/oracle_status\n/oracle_run"
         )
 
-    @client.on(events.Album(chats=config.TELEGRAM_MAIN_CHANNEL_ID))
-    async def handle_album(event):
-        groups = defaultdict(lambda: {"fonts": [], "metadata": ""})
-        pending_metadata = ""
+    async def process_font_messages(event, messages) -> None:
+        if not await require_ingestion_author(event):
+            return
+        font_files = []
+        first_filename = "font"
+        metadata_files = []
 
-        for message in event.messages:
+        for message in messages:
             if not message.document:
                 continue
 
@@ -100,43 +135,107 @@ def register_handlers(client: TelegramClient) -> None:
 
             lower_path = path.lower()
             if lower_path.endswith(".json"):
-                pending_metadata = path
+                metadata_files.append(path)
                 continue
             if not lower_path.endswith((".otf", ".ttf")):
                 continue
 
-            family = get_family_root(filename)
-            groups[family]["fonts"].append(path)
+            if not font_files:
+                first_filename = filename
+            font_files.append(path)
 
-        if not groups:
-            await event.reply("❌ Upload rejected: no TTF or OTF font files found.")
+        if not font_files:
+            await notify_curator(event, "❌ Upload rejected: no TTF or OTF font files found.")
             return
-        if not pending_metadata:
-            await event.reply("❌ Upload rejected: the album needs one JSON metadata file.")
+        merge_rows = []
+        if len(metadata_files) > 1:
+            await notify_curator(event, "❌ Upload rejected: send no JSON file or only one metadata JSON file.")
             return
-        if len(groups) > 1:
-            await event.reply("❌ Upload rejected: send only one font family per album.")
-            return
-
-        family, data = next(iter(groups.items()))
+        family = get_family_root(first_filename)
         try:
-            payload = FontIngestionPayload.from_metadata_file(
-                pending_metadata,
-                data["fonts"],
-            )
+            current_facts = extract_font_facts(font_files)
+            with get_db() as connection:
+                merge_rows = find_mergeable_family_uploads(connection, current_facts["slug"])
+            if merge_rows:
+                existing_files = [
+                    path for row in merge_rows for path in row["font_files"] if os.path.exists(path)
+                ]
+                font_files = list(dict.fromkeys(existing_files + font_files))
+            if metadata_files:
+                payload = FontIngestionPayload.from_metadata_file(
+                    metadata_files[0],
+                    font_files,
+                )
+                facts = extract_font_facts(font_files)
+                source = "uploaded JSON"
+            else:
+                await notify_curator(event, "Generating English, Spanish, and Portuguese metadata…")
+
+                def generate():
+                    with get_db() as connection:
+                        return generate_ingestion_payload(connection, font_files)
+
+                payload, facts = await asyncio.get_running_loop().run_in_executor(None, generate)
+                source = "automatic metadata"
         except (ValidationError, ValueError) as exc:
-            await event.reply(f"❌ Upload rejected: invalid metadata.\n\n{exc}")
+            await notify_curator(event, f"❌ Upload rejected: metadata could not be validated.\n\n{exc}")
+            return
+        except Exception as exc:
+            logger.exception("Could not generate font metadata")
+            await notify_curator(event, f"❌ Metadata generation failed: {exc}")
             return
 
         try:
             with get_db() as connection:
-                queue_incoming_upload(connection, payload)
-            await event.reply(
-                f"✅ {family} queued with {len(payload.font_files)} font file(s)."
+                queue_result = queue_incoming_upload(
+                    connection, payload, [row["id"] for row in merge_rows]
+                )
+            await notify_curator(event,
+                f"✅ {(facts or {}).get('display_name', family)} queued with {len(payload.font_files)} font file(s).\n"
+                f"Metadata: {source}\nCategory: {payload.category}\n"
+                f"Use cases: {', '.join(payload.use_cases)}"
+                + ("\nTelegram split albums merged automatically." if queue_result["merged"] else "")
             )
         except Exception as exc:
             logger.exception("Could not queue Telegram album")
-            await event.reply(f"❌ Could not queue upload: {exc}")
+            await notify_curator(event, f"❌ Could not queue upload: {exc}")
+
+    async def flush_family_batch(key) -> None:
+        try:
+            await asyncio.sleep(FAMILY_COLLECTION_WINDOW_SECONDS)
+            batch = pending_family_batches.pop(key, None)
+            if batch:
+                await process_font_messages(batch["event"], list(batch["messages"].values()))
+        except asyncio.CancelledError:
+            return
+
+    @client.on(events.Album(chats=config.TELEGRAM_MAIN_CHANNEL_ID))
+    async def handle_album(event):
+        font_messages = [
+            message for message in event.messages
+            if message.document and _document_filename(message).lower().endswith((".otf", ".ttf"))
+        ]
+        if not font_messages:
+            await process_font_messages(event, event.messages)
+            return
+        family = get_family_root(_document_filename(font_messages[0])).lower()
+        key = (event.chat_id, family)
+        batch = pending_family_batches.get(key)
+        if batch is None:
+            batch = {"event": event, "messages": {}, "task": None}
+            pending_family_batches[key] = batch
+        batch["event"] = event
+        for message in event.messages:
+            batch["messages"][message.id] = message
+        if batch["task"]:
+            batch["task"].cancel()
+        batch["task"] = asyncio.create_task(flush_family_batch(key))
+
+    @client.on(events.NewMessage(chats=config.TELEGRAM_MAIN_CHANNEL_ID))
+    async def handle_single_font(event):
+        if event.message.grouped_id or not event.message.document:
+            return
+        await process_font_messages(event, [event.message])
 
     @client.on(events.NewMessage(func=lambda event: event.is_private, pattern=r"^/queue$"))
     async def handle_queue(event):
@@ -282,19 +381,14 @@ def register_handlers(client: TelegramClient) -> None:
     async def handle_hitlist(event):
         if not await require_channel_admin(event):
             return
-        from app.oracle.trend_aggregator import fetch_oracle_hitlist
+        from app.oracle.trend_aggregator import fetch_oracle_hitlist, format_oracle_hitlist
 
         with get_db() as connection:
             results = fetch_oracle_hitlist(connection)
         if not results:
             await event.reply("No stored SEO opportunities. Run /oracle_run, then check /oracle_status.")
             return
-        lines = [
-            f"{index}. {item['name']} — {item.get('source', 'Unknown')}\n"
-            f"   {item.get('keywords', {}).get('en', '')}"
-            for index, item in enumerate(results[:20], start=1)
-        ]
-        await event.reply("\n".join(lines))
+        await event.reply(format_oracle_hitlist(results))
 
     @client.on(events.NewMessage(func=lambda event: event.is_private, pattern=r"^/oracle_status$"))
     async def handle_oracle_status(event):
@@ -342,7 +436,7 @@ def register_handlers(client: TelegramClient) -> None:
         from app.services.drip_feed_scheduler import run_daily_batch
         await event.reply("Publishing started.")
         try:
-            result = await asyncio.get_running_loop().run_in_executor(None, run_daily_batch, force)
+            result = await asyncio.get_running_loop().run_in_executor(None, run_daily_batch, force, False)
             if result.get("triggered"):
                 await event.reply("✅ Snapshot uploaded and Cloudflare deployment triggered. Use /publish_status to check it.")
             else:
@@ -374,7 +468,8 @@ def register_handlers(client: TelegramClient) -> None:
         await event.reply(
             f"Publish: {state}.\nTriggered: {status['triggered_at'] or 'never'}\n"
             f"Confirmed: {status['successful_at'] or 'never'}\n"
-            f"Error: {status['last_error'] or 'none'}"
+            f"Deployments this month: {status['monthly_count']}/{status['monthly_limit']}\n"
+            f"Source: {status['last_source'] or 'unknown'}\nError: {status['last_error'] or 'none'}"
         )
 
     @client.on(events.NewMessage(func=lambda event: event.is_private, pattern=r"^/unpublish\s+([a-z0-9-]+)$"))
@@ -422,6 +517,27 @@ def register_handlers(client: TelegramClient) -> None:
             )
         except ValueError as exc:
             await event.reply(f"❌ {exc}")
+
+    @client.on(events.NewMessage(func=lambda event: event.is_private, pattern=r"^/poster_regenerate\s+([a-z0-9-]+)$"))
+    async def handle_poster_regenerate(event):
+        if not await require_channel_admin(event):
+            return
+        from app.services.admin_actions import regenerate_font_poster
+        slug = event.pattern_match.group(1)
+        await event.reply(f"Regenerating the {slug} poster with its real font.")
+
+        def execute():
+            with get_db() as connection:
+                return regenerate_font_poster(connection, slug)
+
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, execute)
+            await event.reply(
+                f"✅ {slug} poster regenerated. Run /publish to update the website."
+            )
+        except Exception as exc:
+            logger.exception("Poster regeneration failed")
+            await event.reply(f"❌ Poster regeneration failed: {exc}")
 
 
 def start_listener() -> None:

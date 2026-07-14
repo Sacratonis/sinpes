@@ -1,0 +1,14 @@
+[Unit]
+Description=SINPES SEO Writer Telegram Bot
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/root/sinpes/apps/api
+ExecStart=/root/sinpes/apps/api/venv/bin/python -m app.services.writer_bot
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

@@ -1,8 +1,25 @@
 import sqlite3
 import unittest
+from datetime import datetime, timezone
+from unittest.mock import patch
 
 from app.repositories.font_repo import FontRepository
 from app.repositories.meta_repo import MetaRepository
+from app.services.deployment_manager import (
+    confirm_deployment_success,
+    snapshot_hash,
+    trigger_deployment,
+)
+
+
+class FakeHookResponse:
+    status = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
 
 
 class PublishingTests(unittest.TestCase):
@@ -57,6 +74,57 @@ class PublishingTests(unittest.TestCase):
         repository.set_value("build_in_progress", "false")
 
         self.assertEqual(repository.get_value("build_in_progress"), "false")
+
+    def trigger(self, **kwargs):
+        defaults = {
+            "artifact_hash": snapshot_hash("fonts", "blog"),
+            "source": "test",
+            "now": datetime(2026, 7, 14, 12, 0, tzinfo=timezone.utc),
+        }
+        defaults.update(kwargs)
+        with (
+            patch("app.services.deployment_manager.config.CF_PAGES_DEPLOY_HOOK_URL", "https://example.test/hook"),
+            patch("app.services.deployment_manager.config.DEPLOY_MONTHLY_LIMIT", 80),
+            patch("app.services.deployment_manager.config.DEPLOY_MANUAL_COOLDOWN_SECONDS", 900),
+            patch("app.services.deployment_manager.config.DEPLOY_STALE_LOCK_SECONDS", 21600),
+            patch("app.services.deployment_manager.urllib.request.urlopen", return_value=FakeHookResponse()),
+        ):
+            return trigger_deployment(self.connection, **defaults)
+
+    def test_unchanged_snapshot_does_not_deploy(self):
+        digest = snapshot_hash("fonts", "blog")
+        MetaRepository(self.connection).set_value("last_successful_snapshot_hash", digest)
+
+        decision = self.trigger(artifact_hash=digest)
+
+        self.assertFalse(decision.triggered)
+        self.assertEqual(decision.reason, "snapshot is unchanged")
+
+    def test_only_one_automatic_deployment_per_day(self):
+        first = self.trigger(automatic=True)
+        self.assertTrue(first.triggered)
+        confirm_deployment_success(self.connection)
+
+        second = self.trigger(artifact_hash=snapshot_hash("changed"), automatic=True)
+
+        self.assertFalse(second.triggered)
+        self.assertEqual(second.reason, "automatic deployment already used today")
+
+    def test_monthly_counter_and_successful_hash_are_recorded(self):
+        decision = self.trigger()
+        self.assertTrue(decision.triggered)
+        self.assertEqual(MetaRepository(self.connection).get_value("deployment_count_2026_07"), "1")
+
+        confirmation = confirm_deployment_success(self.connection)
+
+        self.assertEqual(confirmation["status"], "ok")
+        self.assertEqual(
+            MetaRepository(self.connection).get_value("last_successful_snapshot_hash"),
+            decision.artifact_hash,
+        )
+
+    def test_confirmation_without_pending_deployment_is_ignored(self):
+        self.assertEqual(confirm_deployment_success(self.connection)["status"], "ignored")
 
 
 if __name__ == "__main__":

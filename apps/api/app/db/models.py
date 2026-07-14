@@ -77,6 +77,20 @@ def create_tables(conn: sqlite3.Connection):
             collected_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS oracle_keyword_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT NOT NULL,
+            name TEXT NOT NULL,
+            source TEXT NOT NULL,
+            raw_score REAL NOT NULL DEFAULT 0,
+            normalized_score REAL NOT NULL DEFAULT 0,
+            metric TEXT,
+            payload TEXT NOT NULL,
+            collected_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS ix_oracle_history_slug_source_time
+            ON oracle_keyword_history(slug, source, collected_at);
+
         -- SEO Expert Bot: Article Queue
         CREATE TABLE IF NOT EXISTS article_queue (
             id TEXT PRIMARY KEY,
@@ -91,11 +105,14 @@ def create_tables(conn: sqlite3.Connection):
             target_keyword TEXT,
             secondary_keywords TEXT, -- JSON array
             body_markdown TEXT,
+            body_html TEXT,
+            font_claims TEXT,
             referenced_font_slugs TEXT, -- JSON array
             image_prompt TEXT,
             image_url TEXT,
             image_alt_text TEXT,
             word_count INTEGER,
+            content_scope TEXT,
             status TEXT NOT NULL DEFAULT 'pending_review', -- pending_review, approved, edited, rejected, published
             rejection_note TEXT,
             created_at TEXT NOT NULL,

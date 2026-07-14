@@ -14,6 +14,20 @@ export interface FontEntry {
   translations: Record<string, { description: string; seo_image_url: string; primary_keyword?: string }>;
 }
 
+function cleanDisplayName(name: string, slug: string): string {
+  let cleaned = (name || '').normalize('NFKC').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  cleaned = cleaned
+    .replace(/\s+letters?\s*\d+\s*[x×х]\s*\d+\s*$/i, '')
+    .replace(/\s+(regular|normal|roman)\s*$/i, '')
+    .replace(/\s+(font|typeface)\s*$/i, '')
+    .replace(/\s*[-–—]+\s*$/, '')
+    .trim();
+  if (!cleaned || cleaned.toLowerCase() === 'untitled' || cleaned.length > 80) {
+    cleaned = slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+  }
+  return cleaned;
+}
+
 export async function loadFontRegistry(): Promise<FontEntry[]> {
   const url = import.meta.env.SNAPSHOT_PRESIGNED_URL;
   if (!url) {
@@ -46,5 +60,9 @@ export async function loadFontRegistry(): Promise<FontEntry[]> {
     throw new Error(`Failed to fetch snapshot: ${res.status}`);
   }
   
-  return res.json() as Promise<FontEntry[]>;
+  const fonts = await res.json() as FontEntry[];
+  return fonts.map(font => ({
+    ...font,
+    display_name: cleanDisplayName(font.display_name, font.slug),
+  }));
 }

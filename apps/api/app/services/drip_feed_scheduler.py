@@ -1,10 +1,13 @@
-import time
-import urllib.request
 import requests
 
 from app.routers.snapshot import export_blog_snapshot, export_snapshot
 from app.ingestion.storage_archive import upload_to_r2
 from app.core.config import config
+from app.services.deployment_manager import (
+    get_deployment_status,
+    snapshot_hash,
+    trigger_deployment,
+)
 
 def alert_curator(msg: str):
     """Sends a critical alert to the main Telegram channel."""
@@ -25,17 +28,10 @@ def alert_curator(msg: str):
         print(f"Failed to send Telegram alert: {e}\nOriginal msg: {msg}")
 
 def get_publish_status(conn):
-    from app.repositories.meta_repo import MetaRepository
-    meta = MetaRepository(conn)
-    return {
-        "in_progress": meta.get_value("build_in_progress") == "true",
-        "triggered_at": meta.get_value("last_build_triggered_at"),
-        "successful_at": meta.get_value("last_successful_build_at"),
-        "last_error": meta.get_value("last_build_error"),
-    }
+    return get_deployment_status(conn)
 
 
-def run_daily_batch(force: bool = False):
+def run_daily_batch(force: bool = False, automatic: bool = True):
     from app.db.database import get_db
     try:
         with get_db() as conn:
@@ -44,25 +40,6 @@ def run_daily_batch(force: bool = False):
             m_repo = MetaRepository(conn)
             f_repo = FontRepository(conn)
             
-            last_s_val_str = m_repo.get_value('last_successful_build_at')
-            last_t_val_str = m_repo.get_value('last_build_triggered_at')
-            
-            last_s_val = float(last_s_val_str) if last_s_val_str else 0.0
-            last_t_val = float(last_t_val_str) if last_t_val_str else 0.0
-            
-            # Guard: don't activate a new batch if the last one never confirmed success
-            build_is_recent = last_t_val > 0 and (time.time() - last_t_val) < 21600
-            if not force and build_is_recent and (last_s_val == 0.0 or last_s_val < last_t_val):
-                alert_curator(
-                    "BATCH HALTED: last triggered build has not reported success. "
-                    "Check Cloudflare Pages before the next batch activates."
-                )
-                return {"triggered": False, "reason": "previous build is still waiting"}
-
-            if force:
-                m_repo.set_value('build_in_progress', 'false')
-                m_repo.set_value('last_build_error', '')
-
             # Activate up to 48 fonts in the exact order they were queued
             f_repo.activate_queued_fonts(48)
             conn.commit()
@@ -83,16 +60,18 @@ def run_daily_batch(force: bool = False):
                 cache_control="no-cache"
             )
 
-            # Trigger the Cloudflare build after the snapshot is safely uploaded.
-            if config.CF_PAGES_DEPLOY_HOOK_URL:
-                triggered_at = time.time()
-                m_repo.set_value('last_build_triggered_at', str(triggered_at))
-                m_repo.set_value('build_in_progress', 'true')
-                conn.commit()
-                req = urllib.request.Request(config.CF_PAGES_DEPLOY_HOOK_URL, method="POST")
-                urllib.request.urlopen(req, timeout=15)
-            conn.commit()
-            return {"triggered": bool(config.CF_PAGES_DEPLOY_HOOK_URL)}
+            decision = trigger_deployment(
+                conn,
+                artifact_hash=snapshot_hash(snapshot_json, blog_snapshot_json),
+                source="daily_font_batch" if automatic else "telegram_publish",
+                force=force,
+                automatic=automatic,
+            )
+            return {
+                "triggered": decision.triggered,
+                "reason": decision.reason,
+                "snapshot_hash": decision.artifact_hash,
+            }
 
     except Exception as e:
         try:

@@ -1,6 +1,7 @@
 ---
 import { languages, defaultLang } from '../i18n/ui';
 import { useTranslations } from '../i18n/utils';
+import { categorySlug, formatTaxonomyLabel } from '../utils/taxonomy';
 
 interface Props { 
   locale?: keyof typeof languages; 
@@ -11,16 +12,10 @@ interface Props {
 const { locale = defaultLang, activeCategory = 'all', categories = [] } = Astro.props;
 const t = useTranslations(locale);
 const basePath = locale === defaultLang ? '' : `/${locale}`;
-const categorySlug = (value: string) => value
-  .trim()
-  .toLowerCase()
-  .replace(/[^a-z0-9]+/g, '-')
-  .replace(/^-|-$/g, '');
-
 // Map the dynamic categories
 const mappedCategories = [
   { name: t('category.all') || 'All', slug: 'all' },
-  ...categories.map(cat => ({ name: cat, slug: categorySlug(cat) }))
+  ...categories.map(cat => ({ name: formatTaxonomyLabel(cat), slug: categorySlug(cat) }))
 ];
 ---
 
@@ -122,6 +117,14 @@ const mappedCategories = [
   /* List active (shows Grid icon to switch) */
   :global([data-layout="list"]) .icon-list { opacity: 0; transform: translate(-50%, -50%) rotate(90deg) scale(0.5); pointer-events: none; }
   :global([data-layout="list"]) .icon-grid { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+
+  @media (max-width: 720px) {
+    .rail-wrap { top: 64px; }
+    .rail-anchor { display: none; }
+    .category-rail { scroll-snap-type: x proximity; }
+    .cat-cell { scroll-snap-align: start; padding: 0 16px; }
+    .rail-fade { display: block; }
+  }
 </style>
 
 <script>

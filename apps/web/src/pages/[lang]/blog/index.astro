@@ -23,6 +23,10 @@ const t = useTranslations(lang);
   description={t('blog.description')}
   locale={lang}
 >
+  <header class="view-container blog-header">
+    <h1>{t('blog.heading')}</h1>
+    <p>{t('blog.description')}</p>
+  </header>
   <main class="view-container blog-grid">
     {blogPosts.length > 0 ? blogPosts.map(post => (
       <BlogCard 
@@ -47,5 +51,8 @@ const t = useTranslations(lang);
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
   }
+  .blog-header { padding: 48px 32px; border-bottom: 0.5px solid var(--rule); }
+  .blog-header h1 { margin: 0 0 12px; font-size: clamp(32px, 5vw, 64px); font-weight: 500; }
+  .blog-header p { margin: 0; max-width: 680px; color: var(--muted); line-height: 1.6; }
   .empty-state { grid-column: 1 / -1; padding: 80px 24px; text-align: center; color: var(--muted); font-size: 14px; }
 </style>

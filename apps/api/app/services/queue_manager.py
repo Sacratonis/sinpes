@@ -1,4 +1,3 @@
-import time
 import json
 import os
 import traceback
@@ -7,7 +6,7 @@ import re
 import zipfile
 import io
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from apscheduler.schedulers.background import BackgroundScheduler
 from fontTools.ttLib import TTFont
 
@@ -86,7 +85,7 @@ def process_font_upload(next_item: dict):
     if primary_font_path and os.path.exists(primary_font_path):
         try:
             primary_font_obj = TTFont(primary_font_path)
-            display_name, is_demo = resolve_display_name(primary_font_obj)
+            display_name, is_demo = resolve_display_name(primary_font_obj, slug)
         except Exception as e:
             logger.warning(f"ORCHESTRATOR: Could not extract display name from primary font: {e}")
 
@@ -97,7 +96,8 @@ def process_font_upload(next_item: dict):
             category=category, 
             use_cases=use_cases, 
             keyword_phrases=keyword_phrases, 
-            upload_callback=r2_upload_callback
+            upload_callback=r2_upload_callback,
+            font_path=primary_font_path,
         ) 
         logger.info(f"ORCHESTRATOR: Hero image processed! URL: {seo_image_url}")
     except Exception as e:
@@ -225,56 +225,49 @@ def process_font_upload(next_item: dict):
             raise # Re-raise so the queue manager catches it and retries!
 
 def release_next_from_queue():
-    """🌟 FIX 1: Infinite Retry Loop & Dead Letter Queue Logic 🌟"""
+    """Process exactly one family; the scheduler calls this continuously."""
     with get_db() as conn:
-        from app.repositories.meta_repo import MetaRepository
         from app.repositories.queue_repo import QueueRepository
-        m_repo = MetaRepository(conn)
         q_repo = QueueRepository(conn)
-        
-        last_release_ts_str = m_repo.get_value('last_queue_release_at')
-        last_release_ts = float(last_release_ts_str) if last_release_ts_str else 0.0
-        last_release = datetime.fromtimestamp(last_release_ts)
-        
-        interval = timedelta(minutes=config.QUEUE_INTERVAL_MINUTES)
-        
-        if datetime.now() - last_release < interval:
-            return 
-
         next_item = q_repo.get_oldest_pending_item()
         if not next_item:
-            return 
+            return False
 
-        item_id = next_item.id
-        attempts = next_item.attempts + 1
+    item_id = next_item.id
+    attempts = next_item.attempts + 1
 
-        try:
-            # Pass as dict to avoid sqlite3.Row issues in nested functions
-            process_font_upload(next_item.model_dump()) 
-            
-            # Success!
+    try:
+        process_font_upload(next_item.model_dump())
+        with get_db() as conn:
+            from app.repositories.queue_repo import QueueRepository
+            q_repo = QueueRepository(conn)
             q_repo.mark_processed(item_id)
-            logger.info(f"Successfully processed queue item {item_id}")
-            
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(f"Failed to process item {item_id} (Attempt {attempts}): {error_msg}")
-            traceback.print_exc()
-            
-            # Dead Letter Logic
+            conn.commit()
+        logger.info(f"Successfully processed queue item {item_id}")
+        return True
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Failed to process item {item_id} (Attempt {attempts}): {error_msg}")
+        traceback.print_exc()
+        with get_db() as conn:
+            from app.repositories.queue_repo import QueueRepository
+            q_repo = QueueRepository(conn)
+            q_repo.increment_attempts(item_id, error_msg)
             if attempts >= config.MAX_RETRIES:
                 logger.error(f"Item {item_id} exceeded max retries. Marking as failed.")
                 q_repo.mark_failed(item_id)
-            
-            q_repo.increment_attempts(item_id, error_msg)
-
-        # Always update timestamp so a failure doesn't lock the queue
-        m_repo.set_value('last_queue_release_at', str(time.time()))
-        conn.commit()
+            conn.commit()
+        return False
 
 def start_scheduler() -> BackgroundScheduler:
     scheduler = BackgroundScheduler(timezone="UTC")
-    scheduler.add_job(release_next_from_queue, trigger='interval', minutes=1, max_instances=1)
+    scheduler.add_job(
+        release_next_from_queue,
+        trigger='interval',
+        seconds=max(1, config.QUEUE_POLL_SECONDS),
+        max_instances=1,
+        coalesce=True,
+    )
     
     def run_category_resolver():
         # Use context manager here too to prevent leaks!
@@ -283,6 +276,12 @@ def start_scheduler() -> BackgroundScheduler:
 
     scheduler.add_job(run_category_resolver, trigger='interval', minutes=1, max_instances=1)
     scheduler.add_job(run_daily_batch, trigger='cron', hour=3, minute=0, max_instances=1, misfire_grace_time=300)
+    from app.services.article_publisher import publish_next_approved_article
+    scheduler.add_job(
+        publish_next_approved_article,
+        trigger='cron', day_of_week='mon,wed,fri', hour=9, minute=0,
+        max_instances=1, misfire_grace_time=1800,
+    )
     scheduler.add_job(backup_database, trigger='cron', hour=2, minute=0, max_instances=1)
 
     def run_oracle_collection():

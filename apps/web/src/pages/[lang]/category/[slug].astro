@@ -6,11 +6,11 @@ import { loadFontRegistry } from '@/content/fonts/loader';
 
 import { languages, defaultLang } from '@/i18n/ui';
 import { useTranslations } from '@/i18n/utils';
+import { categorySlug, uniqueCategoryLabels } from '@/utils/taxonomy';
 
 export async function getStaticPaths() {
-  const categorySlug = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const fonts = await loadFontRegistry();
-  const categories = [...new Set(fonts.map(font => font.category).filter(Boolean))];
+  const categories = uniqueCategoryLabels(fonts.map(font => font.category));
   const supportedLangs = Object.keys(languages).filter(l => l !== defaultLang);
 
   return supportedLangs.flatMap(lang => 
