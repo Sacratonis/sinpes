@@ -13,31 +13,56 @@ const basePath = locale === defaultLang ? '' : `/${locale}`;
 
 <footer>
   <div class="footer-inner">
-    <div class="footer-bottom">
+    <div class="footer-main">
       <div class="footer-brand">
         <span class="logo-text">SINPES</span>
-        <span class="copyright">&copy; {new Date().getFullYear()} — Open Source Typography Archive</span>
+        <p>{t('footer.slogan')}</p>
       </div>
-      <div class="footer-links">
-        <a href={`${basePath}/blog`}>{t('footer.blog') || 'Blog'}</a>
-        <a href={`${basePath}/about`}>{t('footer.about') || 'About'}</a>
-        <a href={`${basePath}/contact`}>{t('footer.contact') || 'Contact'}</a>
-        <a href={`${basePath}/privacy`}>{t('footer.privacy') || 'Privacy'}</a>
-        <a href={`${basePath}/terms`}>{t('footer.terms') || 'Terms'}</a>
-        <a href={`${basePath}/disclaimer`}>{t('footer.disclaimer') || 'Disclaimer'}</a>
-      </div>
+      <nav class="footer-group" aria-label={t('footer.browse')}>
+        <span class="footer-heading">{t('footer.browse')}</span>
+        <a href={`${basePath}/category/display`}>{t('category.display')}</a>
+        <a href={`${basePath}/category/sans-serif`}>{t('category.sansSerif')}</a>
+        <a href={`${basePath}/category/script`}>{t('category.script')}</a>
+        <a href={`${basePath}/category/monospaced`}>{t('category.monospaced')}</a>
+      </nav>
+      <nav class="footer-group" aria-label={t('footer.information')}>
+        <span class="footer-heading">{t('footer.information')}</span>
+        <a href={`${basePath}/blog`}>{t('footer.blog')}</a>
+        <a href={`${basePath}/about`}>{t('footer.about')}</a>
+        <a href={`${basePath}/contact`}>{t('footer.contact')}</a>
+      </nav>
+      <nav class="footer-group" aria-label={t('footer.legal')}>
+        <span class="footer-heading">{t('footer.legal')}</span>
+        <a href={`${basePath}/privacy`}>{t('footer.privacy')}</a>
+        <a href={`${basePath}/terms`}>{t('footer.terms')}</a>
+        <a href={`${basePath}/disclaimer`}>{t('footer.disclaimer')}</a>
+      </nav>
+    </div>
+    <div class="footer-bottom">
+      <span class="copyright">&copy; {new Date().getFullYear()} SINPES</span>
+      <span class="copyright">{t('footer.copyright')}</span>
     </div>
   </div>
 </footer>
 
 <style>
-  footer { border-top: 1px solid var(--fg); padding: 32px 24px; }
+  footer { border-top: 0.5px solid var(--rule); padding: 0 24px; }
   .footer-inner { max-width: 1180px; margin: 0 auto; }
-  .footer-bottom { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 24px; }
-  .footer-brand { display: flex; align-items: center; gap: 16px; }
-  .logo-text { font-weight: 800; letter-spacing: .12em; font-size: 13px; color: var(--fg); }
+  .footer-main { display: grid; grid-template-columns: minmax(240px, 1.5fr) repeat(3, 1fr); gap: 48px; padding: 48px 0; }
+  .footer-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+  .footer-brand p { color: var(--muted); font-size: 13px; }
+  .logo-text { font-weight: 800; letter-spacing: .12em; font-size: 20px; color: var(--fg); }
   .copyright { color: var(--muted); font-size: 11px; }
-  .footer-links { display: flex; flex-wrap: wrap; gap: 20px; font-size: 11px; }
-  .footer-links a { text-decoration: none; color: var(--muted); transition: color 0.15s; text-transform: uppercase; letter-spacing: 0.06em; }
-  .footer-links a:hover { color: var(--fg); }
+  .footer-group { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+  .footer-heading { color: var(--fg); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .footer-group a { color: var(--muted); font-size: 11px; transition: color 0.15s; text-transform: uppercase; letter-spacing: 0.06em; }
+  .footer-group a:hover { color: var(--fg); }
+  .footer-bottom { min-height: 52px; border-top: 0.5px solid var(--rule); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+
+  @media (max-width: 720px) {
+    footer { padding: 0 20px; }
+    .footer-main { grid-template-columns: 1fr 1fr; gap: 36px 24px; padding: 36px 0; }
+    .footer-brand { grid-column: 1 / -1; }
+    .footer-bottom { align-items: flex-start; flex-direction: column; justify-content: center; padding: 16px 0; }
+  }
 </style>

@@ -30,7 +30,8 @@ const searchValue = [
 
 <style>
   /* The layout toggle is controlled globally via data-layout on the documentElement */
-  :global([data-layout="grid"]) .font-view-list {
+  :global([data-layout="grid"]) .font-view-list,
+  :global([data-layout="poster"]) .font-view-list {
     display: none;
   }
   :global([data-layout="list"]) .font-view-grid {

@@ -27,7 +27,7 @@ def get_family_root(filename: str) -> str:
     while previous != name:
         previous = name
         name = re.sub(
-            r"[-_ ]?(Bold|Italic|Light|Thin|ExtraBold|ExtraLight|Black|Medium|Regular|Roman|Oblique|Condensed|Extended|Ultra|Mono|SemiBold|Book|Demi|Heavy|W[0-9]+)\b",
+            r"[-_ ]+(?:(?:Extra|Semi)?(?:Bold|Light)|Black|Medium|Regular|Roman|Oblique|Condensed|Extended|Ultra|Mono|Book|Demi|Heavy|Thin|Italic|W[0-9]+|HC|LC)(?:HC|LC)?(?:Italic|Oblique)?$",
             "",
             name,
             flags=re.IGNORECASE,

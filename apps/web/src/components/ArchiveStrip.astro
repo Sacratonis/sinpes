@@ -1,0 +1,40 @@
+---
+import { languages, defaultLang } from '../i18n/ui';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  locale?: keyof typeof languages;
+  count: number;
+}
+
+const { locale = defaultLang, count } = Astro.props;
+const t = useTranslations(locale);
+---
+
+<section class="archive-strip view-container" aria-label={t('home.slogan')}>
+  <h1>{t('home.slogan')}</h1>
+  <span class="archive-count tabular">{t('home.familyCount').replace('{count}', String(count))}</span>
+  <span class="archive-locales" aria-label="English, Español, Português">EN / ES / PT</span>
+</section>
+
+<style>
+  .archive-strip {
+    min-height: 52px;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 24px;
+    padding: 0 24px;
+    border-bottom: 0.5px solid var(--rule);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  h1 { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; }
+  .archive-count, .archive-locales { color: var(--muted); font-size: 10px; }
+
+  @media (max-width: 720px) {
+    .archive-strip { min-height: 48px; grid-template-columns: 1fr auto; gap: 12px; padding: 0 16px; }
+    .archive-locales { display: none; }
+    h1 { font-size: 10px; }
+  }
+</style>

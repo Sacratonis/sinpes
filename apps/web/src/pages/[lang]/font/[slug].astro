@@ -4,7 +4,7 @@ import CharacterMap from '../../../components/CharacterMap.astro';
 import { loadFontRegistry } from '../../../content/fonts/loader';
 import { languages, defaultLang } from '../../../i18n/ui';
 import { useTranslations } from '../../../i18n/utils';
-import { sanitizeFontFamily } from '../../../utils/font';
+import { buildFontFaceCSS, sanitizeFontFamily } from '../../../utils/font';
 
 export async function getStaticPaths() {
   const fonts = await loadFontRegistry();
@@ -20,7 +20,7 @@ const locale = lang as keyof typeof languages;
 const t = useTranslations(locale);
 
 const translation = font?.translations?.[locale] || font?.translations?.['en'] || {};
-const descriptionText = translation.description || "A premium open-source typeface.";
+const descriptionText = translation.description || "A premium free typeface.";
 const heroImageBase = translation.seo_image_url || "";
 const heroImage = heroImageBase && font.last_updated
   ? `${heroImageBase}?v=${new Date(font.last_updated).getTime()}`
@@ -42,15 +42,7 @@ try {
 }
 const heroAlt = `${font.display_name} ${fontCategory} typeface preview${heroUseCases.length ? ` for ${heroUseCases.join(', ')}` : ''}`;
 const fontFamily = sanitizeFontFamily(font.display_name);
-const fontFaceCSS = font.woff2_url ? `
-  @font-face {
-    font-family: "${fontFamily}";
-    src: url("${font.woff2_url}") format("woff2");
-    font-weight: 100 900;
-    font-style: normal;
-    font-display: swap;
-  }
-` : '';
+const fontFaceCSS = buildFontFaceCSS(font.display_name, font.variants, font.woff2_url);
 ---
 
 <Layout title={`${font.display_name} | Sinpes`} description={descriptionText} locale={locale}>
@@ -70,14 +62,19 @@ const fontFaceCSS = font.woff2_url ? `
 
       <!-- HERO SPECIMEN BLOCK -->
       <div class="specimen-hero">
-        <div class="specimen-label label-upper">Typeface Specimen</div>
+        <div class="specimen-label label-upper">{t('detail.specimen')}</div>
         <h1 class="specimen-display" transition:name={`specimen-${font.slug}`} style={`font-family: "${fontFamily}", 'IBM Plex Sans', sans-serif`}>{font.display_name}</h1>
         <div class="specimen-pangram" transition:name={`text-${font.slug}`}>
-          The quick brown fox jumps over the lazy dog.
+          {t('detail.pangram')}
         </div>
         <div class="specimen-numbers tabular">
           0 1 2 3 4 5 6 7 8 9
         </div>
+      </div>
+
+      <div class="mobile-primary-actions">
+        <a href={font.download_zip_url || font.woff2_url} download class="mobile-action primary">{t('dl.download')} <span>&darr;</span></a>
+        <a href={`/${locale}/test/${font.slug}`} class="mobile-action">{t('row.test')} <span>&rarr;</span></a>
       </div>
 
       <!-- CINEMATIC HERO IMAGE -->
@@ -120,7 +117,7 @@ const fontFaceCSS = font.woff2_url ? `
 
       <!-- CHARACTER MAP -->
       <div class="charmap-block">
-        <h2 class="label-upper block-label">Character Set</h2>
+        <h2 class="label-upper block-label">{t('detail.characterSet')}</h2>
         <CharacterMap locale={locale} />
       </div>
 
@@ -144,7 +141,7 @@ const fontFaceCSS = font.woff2_url ? `
           <span class="spec-val tabular">{weightsCount}</span>
         </div>
         <div class="spec-row">
-          <span class="spec-key label-upper">Category</span>
+          <span class="spec-key label-upper">{t('detail.category')}</span>
           <span class="spec-val">{fontCategory}</span>
         </div>
         <div class="spec-row last">
@@ -374,6 +371,7 @@ const fontFaceCSS = font.woff2_url ? `
     overflow: hidden;
     height: 18px; /* Fixed height for the mask */
   }
+  .mobile-primary-actions { display: none; }
   .arrow-down {
     font-size: 18px;
     font-weight: 400;
@@ -435,5 +433,9 @@ const fontFaceCSS = font.woff2_url ? `
     .specimen-hero { padding: 32px 20px; }
     .hero-font-name { left: 20px; right: 20px; bottom: 20px; font-size: clamp(34px, 11vw, 64px); }
     .info-block, .weights-block, .charmap-block { padding: 24px 20px; }
+    .mobile-primary-actions { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 0.5px solid var(--rule); }
+    .mobile-action { min-height: 52px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; color: var(--fg); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; border-right: 0.5px solid var(--rule); }
+    .mobile-action:last-child { border-right: none; }
+    .mobile-action.primary { background: var(--fg); color: var(--bg); }
   }
 </style>

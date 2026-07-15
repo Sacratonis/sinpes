@@ -19,13 +19,14 @@ const t = useTranslations(locale);
         id="globalLivePreview" 
         class="preview-input" 
         placeholder={t('controls.previewPlaceholder') || 'Type to preview...'} 
+        aria-label={t('controls.previewLabel')}
         autocomplete="off"
         spellcheck="false"
       />
     </div>
     
     <div class="preview-controls">
-      <button id="previewResetBtn" class="preview-reset" title="Reset to default">
+      <button id="previewResetBtn" class="preview-reset" type="button" title={t('controls.resetPreview')} aria-label={t('controls.resetPreview')}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
           <path d="M3 3v5h5"/>
@@ -118,7 +119,8 @@ const t = useTranslations(locale);
   const initLivePreview = () => {
     const input = document.getElementById('globalLivePreview') as HTMLInputElement;
     const resetBtn = document.getElementById('previewResetBtn');
-    if (!input || !resetBtn) return;
+    if (!input || !resetBtn || input.dataset.initialized === 'true') return;
+    input.dataset.initialized = 'true';
 
     const originalTextCache = new Map();
     let isInitialized = false;
@@ -151,16 +153,24 @@ const t = useTranslations(locale);
 
     input.addEventListener('input', (e) => {
       const val = (e.target as HTMLInputElement).value;
+      sessionStorage.setItem('sinpes-preview-text', val);
       if (frameId !== null) cancelAnimationFrame(frameId);
       frameId = requestAnimationFrame(() => updatePreviews(val));
     });
 
     resetBtn.addEventListener('click', () => {
       input.value = '';
+      sessionStorage.removeItem('sinpes-preview-text');
       if (frameId !== null) cancelAnimationFrame(frameId);
       frameId = requestAnimationFrame(() => updatePreviews(''));
       input.focus();
     });
+
+    const savedText = sessionStorage.getItem('sinpes-preview-text') || '';
+    if (savedText) {
+      input.value = savedText;
+      updatePreviews(savedText);
+    }
   };
 
   initLivePreview();

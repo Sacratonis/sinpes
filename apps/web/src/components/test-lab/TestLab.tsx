@@ -12,6 +12,8 @@ interface TestLabProps {
     display: string;
     body: string;
     caption: string;
+    weight: string;
+    editHint: string;
     specimenDisplay: string;
     specimenBody: string;
     specimenCaption: string;
@@ -49,6 +51,7 @@ export default function TestLab({
             type="range"
             className="lab-slider"
             min="12" max="160"
+            aria-label={translations.size}
             value={size}
             onInput={(e) => setSize(Number((e.target as HTMLInputElement).value))}
           />
@@ -58,12 +61,13 @@ export default function TestLab({
         {/* Weight toggles */}
         {weights && weights.length > 0 && (
           <div className="toolbar-group">
-            <span className="toolbar-label">Weight</span>
+            <span className="toolbar-label">{translations.weight}</span>
             <div className="weight-pills">
               {weights.map(w => (
                 <button
                   key={w.value}
                   className={`weight-pill${activeWeight === w.value ? ' active' : ''}`}
+                  aria-pressed={activeWeight === w.value}
                   onClick={() => setActiveWeight(w.value)}
                 >
                   {w.name}
@@ -77,10 +81,11 @@ export default function TestLab({
       {/* ── LIVE CANVAS ── */}
       <div className="lab-canvas">
         {!focused && text === initialText && (
-          <span className="canvas-hint">Click to edit</span>
+          <span className="canvas-hint">{translations.editHint}</span>
         )}
         <textarea
           className="canvas-input"
+          aria-label={translations.editHint}
           rows={3}
           spellcheck={false}
           style={{ ...fontStyle, fontSize: `${size}px` }}

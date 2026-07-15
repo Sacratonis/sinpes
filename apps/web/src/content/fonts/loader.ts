@@ -1,10 +1,12 @@
+import type { FontVariant } from '../../utils/font';
+
 export interface FontEntry {
   slug: string;
   display_name: string;
   is_demo: boolean;
   category: string;
   use_cases: string;
-  variants: string[];
+  variants: FontVariant[];
   weights: string[] | null;
   woff2_url: string;
   download_zip_url?: string;

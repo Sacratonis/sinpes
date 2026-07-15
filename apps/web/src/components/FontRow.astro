@@ -1,7 +1,7 @@
 ---
 import { languages, defaultLang } from '../i18n/ui';
 import { useTranslations } from '../i18n/utils';
-import { sanitizeFontFamily } from '../utils/font';
+import { buildFontFaceCSS, sanitizeFontFamily } from '../utils/font';
 import { formatTaxonomyLabel, parseUseCases } from '../utils/taxonomy';
 
 interface Props {
@@ -24,18 +24,9 @@ const paddedIndex = String(index).padStart(2, '0');
 
 // The real font family name — used in both @font-face and the specimen style
 const fontFamily = sanitizeFontFamily(font.display_name);
-const fontSrc = font.woff2_url || '';
 
 // The injected @font-face CSS string
-const fontFaceCSS = fontSrc ? `
-  @font-face {
-    font-family: "${fontFamily}";
-    src: url("${fontSrc}") format('woff2');
-    font-weight: 100 900;
-    font-style: normal;
-    font-display: swap;
-  }
-` : '';
+const fontFaceCSS = buildFontFaceCSS(font.display_name, font.variants, font.woff2_url);
 ---
 
 <!-- Real @font-face injected at build time -->
@@ -129,7 +120,7 @@ const fontFaceCSS = fontSrc ? `
     text-decoration: none;
     color: var(--fg);
     letter-spacing: -0.01em;
-    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .name-text {
     overflow: hidden;
@@ -150,11 +141,11 @@ const fontFaceCSS = fontSrc ? `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .font-row:hover:not(:has(.btn:hover)) .row-name,
   .font-row:hover:not(:has(.btn:hover)) .row-meta {
-    transform: translateX(12px);
+    transform: translateX(6px);
   }
   .row-meta span::after {
     content: "·";
@@ -171,12 +162,12 @@ const fontFaceCSS = fontSrc ? `
     justify-content: center;
     font-size: 42px;
     color: var(--fg);
-    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: clip;
   }
-  .font-row:hover:not(:has(.btn:hover)) .row-specimen { transform: scale(1.2); }
+  .font-row:hover:not(:has(.btn:hover)) .row-specimen { transform: scale(1.05); }
   
   .row-actions {
     border-left: 0.5px solid var(--rule);

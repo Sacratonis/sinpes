@@ -1,7 +1,7 @@
 ---
 import { languages, defaultLang } from '../i18n/ui';
 import { useTranslations } from '../i18n/utils';
-import { sanitizeFontFamily } from '../utils/font';
+import { buildFontFaceCSS, sanitizeFontFamily } from '../utils/font';
 import { formatTaxonomyLabel } from '../utils/taxonomy';
 
 interface Props {
@@ -19,21 +19,12 @@ const paddedIndex = String(index).padStart(2, '0');
 
 // The real font family name — used in both @font-face and the specimen style
 const fontFamily = sanitizeFontFamily(font.display_name);
-const fontSrc = font.woff2_url || '';
 
 // A single glyph that works well at massive scale across all type categories
 const massiveGlyph = 'Aa';
 
 // The injected @font-face CSS string — set:html bakes values in at build time
-const fontFaceCSS = fontSrc ? `
-  @font-face {
-    font-family: "${fontFamily}";
-    src: url("${fontSrc}") format('woff2');
-    font-weight: 100 900;
-    font-style: normal;
-    font-display: swap;
-  }
-` : '';
+const fontFaceCSS = buildFontFaceCSS(font.display_name, font.variants, font.woff2_url);
 ---
 
 <!-- Real @font-face injected at build time for each card -->
@@ -153,6 +144,22 @@ const fontFaceCSS = fontSrc ? `
     transform: translate(8%, 13%) scale(1.05);
     color: var(--muted);
   }
+
+  :global([data-layout="grid"]) .font-card {
+    min-height: 360px;
+    aspect-ratio: 1 / 1;
+  }
+  :global([data-layout="grid"]) .massive-specimen {
+    font-size: clamp(132px, 13vw, 210px);
+    transform: none;
+  }
+  :global([data-layout="grid"]) .font-card:hover:not(:has(.card-action-btn:hover)) .massive-specimen {
+    transform: scale(1.03);
+  }
+  :global([data-layout="grid"]) .card-name {
+    font-size: 24px;
+    padding: 18px 20px;
+  }
   /* BOTTOM */
   .card-bottom {
     display: flex;
@@ -251,7 +258,8 @@ const fontFaceCSS = fontSrc ? `
   .dl-btn:hover .arrow-down { transform: translateY(100%); }
 
   @media (max-width: 720px) {
-    .font-card { min-height: 440px; aspect-ratio: auto; }
+    :global([data-layout="poster"]) .font-card { min-height: 440px; aspect-ratio: auto; }
+    :global([data-layout="grid"]) .font-card { min-height: 320px; aspect-ratio: auto; }
     .card-name {
       min-width: 0;
       padding: 20px;
@@ -261,6 +269,7 @@ const fontFaceCSS = fontSrc ? `
     }
     .card-actions { width: 100%; }
     .card-action-btn { display: flex; padding: 0 16px; }
-    .massive-specimen { font-size: clamp(150px, 52vw, 220px); transform: none; }
+    :global([data-layout="poster"]) .massive-specimen { font-size: clamp(150px, 52vw, 220px); transform: none; }
+    :global([data-layout="grid"]) .massive-specimen { font-size: clamp(112px, 38vw, 160px); transform: none; }
   }
 </style>

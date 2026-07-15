@@ -26,6 +26,61 @@ from app.schemas.ingestion import FontIngestionPayload
 
 logger = logging.getLogger(__name__)
 
+
+def build_font_object_key(slug: str, path: str, weight: int, style: str) -> str:
+    """Create a stable R2 key that preserves same-weight subfamilies such as HC/LC."""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    variant = re.sub(r"[^a-z0-9]+", "-", stem.lower()).strip("-")
+    normalized_slug = slug.replace("_", "-")
+    if variant.startswith(f"{normalized_slug}-"):
+        variant = variant[len(normalized_slug) + 1:]
+    variant = variant or hashlib.sha256(stem.encode("utf-8")).hexdigest()[:12]
+    return f"fonts/{slug}-{weight}-{style}-{variant}.woff2"
+
+
+def resolve_variant_weight(font_obj: TTFont, path: str) -> int:
+    """Use an explicit subfamily name when a font incorrectly stores Regular/400."""
+    weight = 400
+    if 'OS/2' in font_obj:
+        weight = int(font_obj['OS/2'].usWeightClass or 400)
+    if weight != 400:
+        return weight
+
+    subfamily = ""
+    if "name" in font_obj:
+        subfamily = font_obj["name"].getDebugName(17) or font_obj["name"].getDebugName(2) or ""
+    source = f"{subfamily} {os.path.splitext(os.path.basename(path))[0]}"
+    named_weights = (
+        (r"\b(?:extra|ultra)[-_ ]?bold\b", 800),
+        (r"\bsemi[-_ ]?bold\b", 600),
+        (r"\b(?:extra|ultra)[-_ ]?light\b", 200),
+        (r"\bblack\b", 900),
+        (r"\bheavy\b", 900),
+        (r"\bbold\b", 700),
+        (r"\bmedium\b", 500),
+        (r"\blight\b", 300),
+        (r"\bthin\b", 100),
+    )
+    for pattern, value in named_weights:
+        if re.search(pattern, source, re.IGNORECASE):
+            return value
+    return weight
+
+
+def select_primary_variant_url(variants: list[dict]) -> str:
+    """Prefer a normal Regular/400 face for previews and legacy consumers."""
+    if not variants:
+        return ""
+    primary = min(
+        variants,
+        key=lambda item: (
+            item.get("style") != "normal",
+            abs(int(item.get("weight", 400)) - 400),
+            "regular" not in str(item.get("filename", "")).lower(),
+        ),
+    )
+    return str(primary.get("url", ""))
+
 def process_font_upload(next_item: dict):
     """
     The ultimate orchestrator: Processes entire font families, uploads to R2, 
@@ -121,16 +176,13 @@ def process_font_upload(next_item: dict):
                 
             woff2_bytes = generate_woff2(font_obj)
             
-            weight_class = 400 
+            weight_class = resolve_variant_weight(font_obj, path)
             style = "normal"
-            
-            if 'OS/2' in font_obj:
-                weight_class = font_obj['OS/2'].usWeightClass
                 
             if 'italic' in os.path.basename(path).lower():
                 style = "italic"
 
-            font_key = f"fonts/{slug}-{weight_class}-{style}.woff2"
+            font_key = build_font_object_key(slug, path, weight_class, style)
             font_url = upload_to_r2(
                 data=woff2_bytes, 
                 key=font_key, 
@@ -201,7 +253,7 @@ def process_font_upload(next_item: dict):
 
                 f_repo.insert_font(FontRegistry(
                     slug=slug, display_name=display_name, is_demo=is_demo, category=category,
-                    variants=variants_str, weights=weights_str, woff2_url=variants_list[0]['url'],
+                    variants=variants_str, weights=weights_str, woff2_url=select_primary_variant_url(variants_list),
                     file_format='zip', file_size_kb=zip_size_kb or 0, use_cases=use_cases_str,
                     status='queued', file_hash=file_hash, last_updated=now_iso,
                     download_zip_url=download_zip_url, embedded_family_name=None

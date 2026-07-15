@@ -21,22 +21,27 @@
     window.localStorage.setItem('theme', theme);
   };
 
+  const validLayouts = ['list', 'grid', 'poster'];
+  const mobileLayoutQuery = window.matchMedia('(max-width: 720px)');
+
   const setLayout = () => {
-    const layout = (() => {
-      if (typeof localStorage !== 'undefined') {
-        const saved = localStorage.getItem('sinpes-layout');
-        if (saved === 'list' || saved === 'grid') return saved;
-      }
-      // Default to grid layout (the new masonry card design)
-      return 'grid';
-    })();
-    
+    const isMobile = mobileLayoutQuery.matches;
+    const key = isMobile ? 'sinpes-layout-mobile' : 'sinpes-layout-desktop';
+    let layout = localStorage.getItem(key);
+
+    if (!validLayouts.includes(layout)) {
+      const legacy = isMobile ? null : localStorage.getItem('sinpes-layout');
+      layout = validLayouts.includes(legacy) ? legacy : (isMobile ? 'list' : 'grid');
+      localStorage.setItem(key, layout);
+    }
+
     document.documentElement.setAttribute('data-layout', layout);
-    window.localStorage.setItem('sinpes-layout', layout);
+    document.documentElement.setAttribute('data-layout-context', isMobile ? 'mobile' : 'desktop');
   };
   
   setTheme();
   setLayout();
+  mobileLayoutQuery.addEventListener('change', setLayout);
   
   document.addEventListener('astro:after-swap', () => {
     setTheme();

@@ -21,6 +21,12 @@ class FontNameTests(unittest.TestCase):
         self.assertEqual(get_family_root("Inter-Black.otf"), "Inter")
         self.assertEqual(get_family_root("Inter-LightItalic.otf"), "Inter")
 
+    def test_contrast_styles_share_one_family_root(self):
+        self.assertEqual(get_family_root("Thunder-BlackHC.ttf"), "Thunder")
+        self.assertEqual(get_family_root("Thunder-LightLCItalic.ttf"), "Thunder")
+        self.assertEqual(get_family_root("Thunder-HCItalic.ttf"), "Thunder")
+        self.assertEqual(get_family_root("Thunder-SemiBoldHC.ttf"), "Thunder")
+
 
 if __name__ == "__main__":
     unittest.main()

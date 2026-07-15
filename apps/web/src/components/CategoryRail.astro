@@ -12,10 +12,20 @@ interface Props {
 const { locale = defaultLang, activeCategory = 'all', categories = [] } = Astro.props;
 const t = useTranslations(locale);
 const basePath = locale === defaultLang ? '' : `/${locale}`;
+const categoryTranslations: Record<string, string> = {
+  display: t('category.display'),
+  historical: t('category.historical'),
+  monospaced: t('category.monospaced'),
+  'sans-serif': t('category.sansSerif'),
+  script: t('category.script'),
+};
 // Map the dynamic categories
 const mappedCategories = [
   { name: t('category.all') || 'All', slug: 'all' },
-  ...categories.map(cat => ({ name: formatTaxonomyLabel(cat), slug: categorySlug(cat) }))
+  ...categories.map(cat => {
+    const slug = categorySlug(cat);
+    return { name: categoryTranslations[slug] || formatTaxonomyLabel(cat), slug };
+  })
 ];
 ---
 
@@ -35,18 +45,15 @@ const mappedCategories = [
   </nav>
   <div class="rail-fade"></div>
   
-  <!-- Layout Toggle UI -->
-  <div class="layout-toggle">
-    <button
-      class="layout-btn"
-      id="layoutToggle"
-      type="button"
-      aria-label={t('layout.switchList')}
-      data-label-list={t('layout.switchList')}
-      data-label-grid={t('layout.switchGrid')}
-    >
-      <span class="layout-icon icon-list" aria-hidden="true">≡</span>
-      <span class="layout-icon icon-grid" aria-hidden="true">⊞</span>
+  <div class="layout-toggle" role="group" aria-label={t('layout.choose')}>
+    <button class="layout-btn" type="button" data-layout-choice="list" aria-label={t('layout.list')} title={t('layout.list')}>
+      <span aria-hidden="true">≡</span>
+    </button>
+    <button class="layout-btn" type="button" data-layout-choice="grid" aria-label={t('layout.grid')} title={t('layout.grid')}>
+      <span aria-hidden="true">⊞</span>
+    </button>
+    <button class="layout-btn" type="button" data-layout-choice="poster" aria-label={t('layout.poster')} title={t('layout.poster')}>
+      <span aria-hidden="true">▣</span>
     </button>
   </div>
 </div>
@@ -77,8 +84,8 @@ const mappedCategories = [
   .cat-cell:not(.active):hover::before { opacity: 1; transform: translate(0, -50%); }
   .cat-cell:not(.active):hover::after { opacity: 1; transform: translate(0, -50%); }
   .cat-cell.active { background: var(--fg); color: var(--bg); }
-  .rail-spacer { padding-right: 48px; } /* Space for the fade and toggle */
-  .rail-fade { position: absolute; right: 58px; top: 0; bottom: 0; width: 48px; pointer-events: none; background: linear-gradient(to right, transparent, var(--bg)); }
+  .rail-spacer { padding-right: 48px; }
+  .rail-fade { position: absolute; right: 108px; top: 0; bottom: 0; width: 48px; pointer-events: none; background: linear-gradient(to right, transparent, var(--bg)); }
   
   .layout-toggle {
     display: flex;
@@ -89,7 +96,7 @@ const mappedCategories = [
     z-index: 2;
   }
   .layout-btn {
-    min-width: 58px;
+    width: 36px;
     height: 36px;
     display: flex;
     align-items: center;
@@ -98,58 +105,50 @@ const mappedCategories = [
     border: none;
     color: var(--muted);
     transition: color 0.15s, background 0.15s;
-    font-size: 22px; /* Made the icons much larger */
+    font-size: 18px;
     position: relative;
+    border-right: 0.5px solid var(--rule);
   }
-  .layout-btn:hover { color: var(--fg); }
-  
-  .layout-icon {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  .layout-btn:last-child { border-right: none; }
+  .layout-btn:hover { color: var(--fg); background: color-mix(in srgb, var(--fg) 4%, transparent); }
+  :global([data-layout="list"]) .layout-btn[data-layout-choice="list"],
+  :global([data-layout="grid"]) .layout-btn[data-layout-choice="grid"],
+  :global([data-layout="poster"]) .layout-btn[data-layout-choice="poster"] {
+    background: var(--fg);
+    color: var(--bg);
   }
-  
-  /* Grid active (shows List icon to switch) */
-  .icon-list { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1); }
-  .icon-grid { opacity: 0; transform: translate(-50%, -50%) rotate(-90deg) scale(0.5); pointer-events: none; }
-  
-  /* List active (shows Grid icon to switch) */
-  :global([data-layout="list"]) .icon-list { opacity: 0; transform: translate(-50%, -50%) rotate(90deg) scale(0.5); pointer-events: none; }
-  :global([data-layout="list"]) .icon-grid { opacity: 1; transform: translate(-50%, -50%) rotate(0deg) scale(1); }
 
   @media (max-width: 720px) {
     .rail-wrap { top: 64px; }
     .rail-anchor { display: none; }
     .category-rail { scroll-snap-type: x proximity; }
     .cat-cell { scroll-snap-align: start; padding: 0 16px; }
-    .rail-fade { display: block; }
+    .rail-fade { display: block; right: 108px; }
   }
 </style>
 
 <script>
   const initLayoutToggle = () => {
-    const button = document.querySelector<HTMLButtonElement>('#layoutToggle');
-    if (!button || button.dataset.initialized === 'true') return;
-    button.dataset.initialized = 'true';
+    const buttons = document.querySelectorAll<HTMLButtonElement>('[data-layout-choice]');
+    if (!buttons.length) return;
 
-    const syncLabel = () => {
-      const current = document.documentElement.getAttribute('data-layout') === 'list' ? 'list' : 'grid';
-      button.setAttribute(
-        'aria-label',
-        current === 'grid' ? button.dataset.labelList || '' : button.dataset.labelGrid || ''
-      );
-      button.setAttribute('aria-pressed', String(current === 'list'));
+    const syncState = () => {
+      const current = document.documentElement.getAttribute('data-layout') || 'grid';
+      buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.layoutChoice === current)));
     };
 
-    syncLabel();
-    button.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-layout') === 'list' ? 'list' : 'grid';
-      const next = current === 'grid' ? 'list' : 'grid';
-      document.documentElement.setAttribute('data-layout', next);
-      localStorage.setItem('sinpes-layout', next);
-      syncLabel();
+    buttons.forEach(button => {
+      if (button.dataset.initialized === 'true') return;
+      button.dataset.initialized = 'true';
+      button.addEventListener('click', () => {
+        const next = button.dataset.layoutChoice || 'grid';
+        const isMobile = window.matchMedia('(max-width: 720px)').matches;
+        document.documentElement.setAttribute('data-layout', next);
+        localStorage.setItem(isMobile ? 'sinpes-layout-mobile' : 'sinpes-layout-desktop', next);
+        syncState();
+      });
     });
+    syncState();
   };
 
   initLayoutToggle();

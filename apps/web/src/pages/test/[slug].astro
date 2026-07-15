@@ -4,7 +4,7 @@ import TestLab from '../../components/test-lab/TestLab.tsx';
 import { loadFontRegistry } from '../../content/fonts/loader';
 import { defaultLang } from '../../i18n/ui';
 import { useTranslations } from '../../i18n/utils';
-import { sanitizeFontFamily } from '../../utils/font';
+import { buildFontFaceCSS } from '../../utils/font';
 
 export async function getStaticPaths() {
   const fonts = await loadFontRegistry();
@@ -21,15 +21,19 @@ if (!font) {
 }
 
 const t = useTranslations(defaultLang);
-const fontFaceCSS = `@font-face { font-family: "${sanitizeFontFamily(font.display_name)}"; src: url(${JSON.stringify(font.woff2_url)}) format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }`;
+const sortedWeights = Array.isArray(font.weights)
+  ? [...font.weights].sort((a: string, b: string) => Number(a) - Number(b))
+  : undefined;
+const fontFaceCSS = buildFontFaceCSS(font.display_name, font.variants, font.woff2_url);
 ---
 
 <Layout
-  title={`Test ${font.display_name} — SINPES`}
-  description={`Interactively test and preview the ${font.display_name} typeface at any size and weight.`}
+  title={`${t('test.pageTitle').replace('{font}', font.display_name)} — SINPES`}
+  description={t('test.pageDescription').replace('{font}', font.display_name)}
   locale={defaultLang}
 >
   <style is:global set:html={fontFaceCSS}></style>
+  <h1 class="sr-only">{t('test.pageTitle').replace('{font}', font.display_name)}</h1>
 
   <!-- SUBNAV: 3-column grid -->
   <div class="lab-subnav view-container">
@@ -45,12 +49,14 @@ const fontFaceCSS = `@font-face { font-family: "${sanitizeFontFamily(font.displa
       fontName={font.display_name}
       fontSlug={font.slug}
       woff2Url={font.woff2_url}
-      weights={font.weights ? font.weights.map((w: string) => ({ name: w, value: w })) : undefined}
+      weights={sortedWeights?.map((w: string) => ({ name: w, value: w }))}
       translations={{
         size: t('test.size'),
         display: t('test.display'),
         body: t('test.body'),
         caption: t('test.caption'),
+        weight: t('test.weight'),
+        editHint: t('test.editHint'),
         specimenDisplay: t('test.specimen.display'),
         specimenBody: t('test.specimen.body'),
         specimenCaption: t('test.specimen.caption'),
@@ -251,8 +257,13 @@ const fontFaceCSS = `@font-face { font-family: "${sanitizeFontFamily(font.displa
 
   /* ── RESPONSIVE ── */
   @media (max-width: 720px) {
-    .lab-toolbar { flex-direction: column; align-items: flex-start; gap: 14px; }
-    .lab-slider { width: 100%; }
+    .lab-subnav { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 0 16px; }
+    .lab-nav-center { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lab-toolbar { flex-direction: column; align-items: stretch; gap: 14px; min-width: 0; padding: 14px 20px; }
+    .toolbar-group { width: 100%; min-width: 0; }
+    .toolbar-group:first-child .lab-slider { flex: 1; width: auto; min-width: 80px; }
+    .toolbar-group:has(.weight-pills) { align-items: flex-start; flex-direction: column; }
+    .weight-pills { width: 100%; max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
     .lab-canvas { padding: 48px 20px; min-height: 240px; }
     .canvas-hint { left: 20px; }
     .specimen-row { grid-template-columns: 1fr; }

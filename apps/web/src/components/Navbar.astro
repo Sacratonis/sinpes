@@ -9,6 +9,10 @@ const { locale = defaultLang } = Astro.props;
 const t = useTranslations(locale);
 const basePath = locale === defaultLang ? '' : `/${locale}`;
 const currentPath = Astro.url.pathname;
+const localizedPath = locale === defaultLang ? currentPath : currentPath.replace(new RegExp(`^/${locale}`), '') || '/';
+const isLibrary = localizedPath === '/' || /^\/(font|test|category)(\/|$)/.test(localizedPath);
+const isBlog = /^\/blog(\/|$)/.test(localizedPath);
+const isAbout = localizedPath === '/about' || localizedPath === '/about/';
 ---
 
 <header class="navbar" id="mainNavbar">
@@ -17,9 +21,9 @@ const currentPath = Astro.url.pathname;
   </div>
 
   <div class="nav-center">
-    <a href={basePath || '/'}>{t('nav.library') || 'Library'}</a>
-    <a href={`${basePath}/blog`}>{t('nav.blog') || 'Blog'}</a>
-    <a href={`${basePath}/about`}>{t('nav.about') || 'About'}</a>
+    <a href={basePath || '/'} class:list={{ active: isLibrary }} aria-current={isLibrary ? 'page' : undefined}>{t('nav.library') || 'Library'}</a>
+    <a href={`${basePath}/blog`} class:list={{ active: isBlog }} aria-current={isBlog ? 'page' : undefined}>{t('nav.blog') || 'Blog'}</a>
+    <a href={`${basePath}/about`} class:list={{ active: isAbout }} aria-current={isAbout ? 'page' : undefined}>{t('nav.about') || 'About'}</a>
   </div>
 
   <div class="nav-right">
@@ -39,7 +43,7 @@ const currentPath = Astro.url.pathname;
     <ThemeToggle />
 
     <!-- MOBILE HAMBURGER BUTTON -->
-    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu">
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label={t('nav.openMenu')} aria-expanded="false" aria-controls="mobileDrawer" data-open-label={t('nav.openMenu')} data-close-label={t('nav.closeMenu')}>
       <span class="bar"></span><span class="bar"></span>
     </button>
   </div>
@@ -87,6 +91,7 @@ const currentPath = Astro.url.pathname;
     transform: scaleX(1);
     transform-origin: left;
   }
+  .nav-center a.active::after { transform: scaleX(1); transform-origin: left; }
   .nav-right { display: flex; justify-content: flex-end; align-items: center; gap: 16px; }
   
   .lang-dropdown { position: relative; }
@@ -162,15 +167,30 @@ const currentPath = Astro.url.pathname;
   const setupMobileMenu = () => {
     const navbar = document.getElementById('mainNavbar');
     const btn = document.getElementById('mobileMenuBtn');
-    if (!navbar || !btn) return;
+    if (!navbar || !btn || btn.dataset.initialized === 'true') return;
+    btn.dataset.initialized = 'true';
+    const drawer = document.getElementById('mobileDrawer');
+
+    const setOpen = (isOpening: boolean) => {
+      navbar.classList.toggle('is-open', isOpening);
+      btn.setAttribute('aria-expanded', String(isOpening));
+      btn.setAttribute('aria-label', isOpening ? btn.dataset.closeLabel || 'Close menu' : btn.dataset.openLabel || 'Open menu');
+      drawer?.toggleAttribute('inert', !isOpening);
+      document.body.classList.toggle('no-scroll', isOpening);
+      if (isOpening) drawer?.querySelector<HTMLElement>('a, input, button')?.focus();
+    };
 
     btn.addEventListener('click', () => {
       const isOpening = !navbar.classList.contains('is-open');
-      navbar.classList.toggle('is-open', isOpening);
-      btn.setAttribute('aria-expanded', String(isOpening));
-      const drawer = document.getElementById('mobileDrawer');
-      drawer?.toggleAttribute('inert', !isOpening);
-      document.body.classList.toggle('no-scroll', isOpening);
+      setOpen(isOpening);
+    });
+
+    drawer?.querySelectorAll('a').forEach(link => link.addEventListener('click', () => setOpen(false)));
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && navbar.classList.contains('is-open')) {
+        setOpen(false);
+        btn.focus();
+      }
     });
   };
 
