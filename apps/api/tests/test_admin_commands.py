@@ -77,10 +77,11 @@ class AdminCommandTests(unittest.TestCase):
             "INSERT INTO upload_queue(text_payload) VALUES(?)", (json.dumps({"slug": "demo"}),)
         )
 
-        font, keys = prepare_erase(self.connection, "demo")
-        self.assertEqual(font["slug"], "demo")
-        self.assertGreaterEqual(len(keys), 3)
-        self.assertEqual(confirm_erase(self.connection, "demo"), 4)
+        with patch("app.services.admin_actions.config.R2_PUBLIC_BASE_URL", base):
+            font, keys = prepare_erase(self.connection, "demo")
+            self.assertEqual(font["slug"], "demo")
+            self.assertGreaterEqual(len(keys), 3)
+            self.assertEqual(confirm_erase(self.connection, "demo"), 4)
         self.assertIsNone(self.connection.execute(
             "SELECT slug FROM font_registry WHERE slug = 'demo'"
         ).fetchone())
