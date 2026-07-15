@@ -45,9 +45,24 @@ def _as_int(value: str | None) -> int:
         return 0
 
 
+def _clear_stale_build_lock(meta: MetaRepository, now: datetime) -> bool:
+    """Release a build lock when Cloudflare never sent its success callback."""
+    if meta.get_value("build_in_progress") != "true":
+        return False
+    triggered_at = _as_float(meta.get_value("last_build_triggered_at"))
+    if triggered_at and now.timestamp() - triggered_at < config.DEPLOY_STALE_LOCK_SECONDS:
+        return False
+    meta.set_value("build_in_progress", "false")
+    meta.set_value("pending_snapshot_hash", "")
+    meta.set_value("last_build_error", "Cloudflare build confirmation timed out")
+    meta.conn.commit()
+    return True
+
+
 def get_deployment_status(conn) -> dict:
     meta = MetaRepository(conn)
     now = datetime.now(timezone.utc)
+    _clear_stale_build_lock(meta, now)
     return {
         "in_progress": meta.get_value("build_in_progress") == "true",
         "triggered_at": meta.get_value("last_build_triggered_at"),
@@ -74,6 +89,7 @@ def trigger_deployment(
     meta = MetaRepository(conn)
     now = now or datetime.now(timezone.utc)
     timestamp = now.timestamp()
+    _clear_stale_build_lock(meta, now)
 
     if not config.CF_PAGES_DEPLOY_HOOK_URL:
         return DeploymentDecision(False, "Cloudflare deploy hook is not configured", artifact_hash)

@@ -127,6 +127,14 @@ def regenerate_font_poster(conn, slug: str) -> str:
     with tempfile.NamedTemporaryFile(suffix=suffix) as font_file:
         font_file.write(archive.read(font_member))
         font_file.flush()
+        existing_image_urls = [
+            result[0]
+            for result in conn.execute(
+                "SELECT DISTINCT t.seo_image_url "
+                "FROM font_translations t WHERE t.slug != ? AND t.seo_image_url != ''",
+                (slug,),
+            ).fetchall()
+        ]
         url = process_hero_image(
             slug=row["slug"],
             display_name=row["display_name"],
@@ -135,6 +143,7 @@ def regenerate_font_poster(conn, slug: str) -> str:
             keyword_phrases={"en": f"{row['display_name']}, {row['category']} font"},
             upload_callback=upload_to_r2,
             font_path=font_file.name,
+            existing_image_urls=existing_image_urls,
         )
 
     conn.execute(

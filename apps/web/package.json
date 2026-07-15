@@ -6,7 +6,8 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "postbuild": "npx pagefind --site dist"
+    "test:search": "node --test tests/fontSearch.test.mjs",
+    "postbuild": "npx pagefind --site dist && node scripts/notify-build-success.mjs"
   },
   "dependencies": {
     "@astrojs/preact": "^3.5.4",

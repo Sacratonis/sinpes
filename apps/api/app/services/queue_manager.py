@@ -145,6 +145,13 @@ def process_font_upload(next_item: dict):
             logger.warning(f"ORCHESTRATOR: Could not extract display name from primary font: {e}")
 
     try:
+        with get_db() as image_conn:
+            existing_image_urls = [
+                row[0]
+                for row in image_conn.execute(
+                    "SELECT DISTINCT seo_image_url FROM font_translations WHERE seo_image_url != ''"
+                ).fetchall()
+            ]
         seo_image_url = process_hero_image(
             slug=slug, 
             display_name=display_name, 
@@ -153,6 +160,7 @@ def process_font_upload(next_item: dict):
             keyword_phrases=keyword_phrases, 
             upload_callback=r2_upload_callback,
             font_path=primary_font_path,
+            existing_image_urls=existing_image_urls,
         ) 
         logger.info(f"ORCHESTRATOR: Hero image processed! URL: {seo_image_url}")
     except Exception as e:

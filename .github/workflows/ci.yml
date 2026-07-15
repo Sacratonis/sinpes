@@ -9,6 +9,21 @@ on:
 jobs:
   test-api:
     runs-on: ubuntu-latest
+    env:
+      # Use the real Oracle token when the repository secret is available. The
+      # fallback keeps forked pull requests testable without exposing secrets.
+      TELEGRAM_ORACLE_BOT_TOKEN: ${{ secrets.TELEGRAM_ORACLE_BOT_TOKEN || 'ci-oracle-token' }}
+      TELEGRAM_API_ID: "1"
+      TELEGRAM_API_HASH: "ci-test"
+      TELEGRAM_MAIN_CHANNEL_ID: "-1001"
+      R2_ACCOUNT_ID: "ci-test"
+      R2_ACCESS_KEY_ID: "ci-test"
+      R2_SECRET_ACCESS_KEY: "ci-test"
+      R2_BUCKET_NAME: "ci-test"
+      R2_PUBLIC_BASE_URL: "https://example.invalid"
+      CF_PAGES_DEPLOY_HOOK_URL: "https://example.invalid"
+      BUILD_SECRET: "ci-test"
+      APP_ENV: "test"
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python

@@ -7,6 +7,7 @@ from app.repositories.font_repo import FontRepository
 from app.repositories.meta_repo import MetaRepository
 from app.services.deployment_manager import (
     confirm_deployment_success,
+    get_deployment_status,
     snapshot_hash,
     trigger_deployment,
 )
@@ -125,6 +126,19 @@ class PublishingTests(unittest.TestCase):
 
     def test_confirmation_without_pending_deployment_is_ignored(self):
         self.assertEqual(confirm_deployment_success(self.connection)["status"], "ignored")
+
+    def test_stale_build_lock_is_released(self):
+        repository = MetaRepository(self.connection)
+        repository.set_value("build_in_progress", "true")
+        repository.set_value("last_build_triggered_at", "1")
+        repository.set_value("pending_snapshot_hash", "stale")
+
+        with patch("app.services.deployment_manager.config.DEPLOY_STALE_LOCK_SECONDS", 60):
+            status = get_deployment_status(self.connection)
+
+        self.assertFalse(status["in_progress"])
+        self.assertEqual(status["pending_hash"], "")
+        self.assertEqual(status["last_error"], "Cloudflare build confirmation timed out")
 
 
 if __name__ == "__main__":

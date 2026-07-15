@@ -54,34 +54,26 @@ const basePath = locale === defaultLang ? '/' : `/${locale}/`;
 </style>
 
 <script>
+  import { filterFontSearchIndexes } from '../utils/fontSearch.mjs';
+
   const initSearch = () => {
     const searchBoxes = document.querySelectorAll<HTMLInputElement>('.search-box');
     const searchForms = document.querySelectorAll<HTMLFormElement>('.search-container');
     const params = new URLSearchParams(window.location.search);
     const initialQuery = params.get('q') || '';
 
-    const normalize = (value: string) => value
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim();
-
     function filterItems(query: string) {
       const items = document.querySelectorAll<HTMLElement>('.font-item[data-font-search]');
-      const tokens = normalize(query).split(/\s+/).filter(Boolean);
-      const indexedItems = [...items].map(item => ({
-        item,
-        words: normalize(item.dataset.fontSearch || '').split(/\s+/).filter(Boolean),
-      }));
-      const hasExactResult = tokens.length > 0 && indexedItems.some(({ words }) =>
-        tokens.every(token => words.includes(token))
+      const tokens = query.trim().split(/\s+/).filter(Boolean);
+      const indexedItems = [...items];
+      const matchesByIndex = filterFontSearchIndexes(
+        query,
+        indexedItems.map(item => item.dataset.fontSearch || ''),
+        indexedItems.map(item => [item.dataset.fontName || '', item.dataset.fontSlug || '']),
       );
       let visibleCount = 0;
-      indexedItems.forEach(({ item, words }) => {
-        const matches = tokens.length === 0 || tokens.every(token =>
-          hasExactResult ? words.includes(token) : words.some(word => word.startsWith(token))
-        );
+      indexedItems.forEach((item, index) => {
+        const matches = matchesByIndex[index];
         item.hidden = !matches;
         if (matches) visibleCount += 1;
       });

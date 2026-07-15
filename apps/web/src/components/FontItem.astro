@@ -19,7 +19,12 @@ const searchValue = [
 ].filter(Boolean).join(' ');
 ---
 
-<div class="font-item" data-font-search={searchValue}>
+<div
+  class="font-item"
+  data-font-search={searchValue}
+  data-font-name={font.display_name}
+  data-font-slug={font.slug}
+>
   <div class="font-view-list">
     <FontRow index={index} locale={locale} font={font} />
   </div>

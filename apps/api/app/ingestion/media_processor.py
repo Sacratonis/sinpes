@@ -5,10 +5,14 @@ import logging
 import requests
 import urllib.parse
 import html
+from collections.abc import Iterable
+from datetime import datetime, timedelta, timezone
 from PIL import Image, ImageEnhance, ImageOps
 from app.core.config import config
 
 logger = logging.getLogger(__name__)
+_HERO_HASH_CACHE: dict[str, int] = {}
+_CF_QUOTA_EXHAUSTED_UNTIL: datetime | None = None
 
 def validate_image_bytes(data: bytes) -> bytes:
     try:
@@ -45,13 +49,16 @@ def build_xmp_metadata(title: str, description: str, keywords: list[str], rights
 </x:xmpmeta>
 <?xpacket end="w"?>'''.encode("utf-8")
 
-def generate_ai_image_bytes(prompt: str) -> bytes:
+def generate_ai_image_bytes(prompt: str, seed: int | None = None) -> bytes:
     """
     Primary: CF Worker (Flux-1-Schnell)
     Fallback: Pollinations (Flux)
     """
     # 1. Try Cloudflare Worker
-    if config.IMAGE_GEN_WORKER_URL and config.IMAGE_GEN_WORKER_SECRET:
+    global _CF_QUOTA_EXHAUSTED_UNTIL
+    now = datetime.now(timezone.utc)
+    worker_available = not _CF_QUOTA_EXHAUSTED_UNTIL or now >= _CF_QUOTA_EXHAUSTED_UNTIL
+    if config.IMAGE_GEN_WORKER_URL and config.IMAGE_GEN_WORKER_SECRET and worker_available:
         try:
             logger.info(f"Generating image via CF Worker for prompt: {prompt[:50]}...")
             resp = requests.post(
@@ -60,15 +67,30 @@ def generate_ai_image_bytes(prompt: str) -> bytes:
                 headers={"Authorization": f"Bearer {config.IMAGE_GEN_WORKER_SECRET}"},
                 timeout=30
             )
+            if resp.status_code >= 400 and "4006" in resp.text:
+                tomorrow = (now + timedelta(days=1)).date()
+                _CF_QUOTA_EXHAUSTED_UNTIL = datetime.combine(
+                    tomorrow, datetime.min.time(), tzinfo=timezone.utc
+                )
+                logger.warning(
+                    "Cloudflare Workers AI daily free quota is exhausted; using fallback until %s",
+                    _CF_QUOTA_EXHAUSTED_UNTIL.isoformat(),
+                )
             resp.raise_for_status()
             return validate_image_bytes(resp.content)
         except Exception as e:
             logger.error(f"CF Worker image gen failed, falling back to Pollinations. Error: {e}")
 
+    elif not worker_available:
+        logger.info("Skipping Cloudflare Worker until its daily quota resets")
+
     # 2. Fallback to Pollinations (flux model)
     logger.info("Generating image via Pollinations fallback...")
     encoded_prompt = urllib.parse.quote(prompt)
-    pollinations_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&nologo=true"
+    seed_parameter = f"&seed={seed}" if seed is not None else ""
+    pollinations_url = (
+        f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&nologo=true{seed_parameter}"
+    )
     
     resp = requests.get(pollinations_url, timeout=45)
     resp.raise_for_status()
@@ -94,10 +116,10 @@ SCENE_DIRECTIONS = (
 )
 
 
-def build_scene_prompt(category: str, use_cases: list[str], slug: str = "") -> str:
+def build_scene_prompt(category: str, use_cases: list[str], slug: str = "", attempt: int = 0) -> str:
     uses = ", ".join(use_cases) if isinstance(use_cases, list) else str(use_cases)
     identity = f"{slug}|{category}|{uses}".encode("utf-8")
-    scene_index = int(hashlib.sha256(identity).hexdigest()[:8], 16) % len(SCENE_DIRECTIONS)
+    scene_index = (int(hashlib.sha256(identity).hexdigest()[:8], 16) + attempt * 7) % len(SCENE_DIRECTIONS)
     scene = SCENE_DIRECTIONS[scene_index]
     return (
         f"Create a wide cinematic editorial photograph of {scene}. The art direction should express the mood "
@@ -108,6 +130,47 @@ def build_scene_prompt(category: str, use_cases: list[str], slug: str = "") -> s
         "This is a photograph only, not a graphic poster. No captions, no typography, no letters, no words, "
         "no numbers, no logos, no watermarks, no signs, no labels, no interface elements. Wide 16:7 composition."
     )
+
+
+def perceptual_image_hash(data: bytes, size: int = 16) -> int:
+    """Return a compact difference hash that survives resize and light color edits."""
+    image = Image.open(io.BytesIO(data)).convert("L")
+    image = ImageOps.fit(image, (size + 1, size), method=Image.Resampling.LANCZOS)
+    pixels = list(image.getdata())
+    result = 0
+    for row in range(size):
+        offset = row * (size + 1)
+        for column in range(size):
+            result = (result << 1) | int(pixels[offset + column] > pixels[offset + column + 1])
+    return result
+
+
+def hash_distance(first: int, second: int) -> int:
+    return (first ^ second).bit_count()
+
+
+def find_duplicate_hero(
+    candidate: bytes,
+    existing_image_urls: Iterable[str],
+    *,
+    threshold: int = 50,
+) -> str | None:
+    """Return the first visually similar live hero URL, if one exists."""
+    candidate_hash = perceptual_image_hash(candidate)
+    for url in dict.fromkeys(url for url in existing_image_urls if url):
+        try:
+            existing_hash = _HERO_HASH_CACHE.get(url)
+            if existing_hash is None:
+                response = requests.get(url, timeout=20)
+                response.raise_for_status()
+                existing_hash = perceptual_image_hash(response.content)
+                _HERO_HASH_CACHE[url] = existing_hash
+        except Exception as exc:
+            logger.warning("Could not inspect existing hero %s: %s", url, exc)
+            continue
+        if hash_distance(candidate_hash, existing_hash) <= threshold:
+            return url
+    return None
 
 
 def compose_font_poster(raw_image_bytes: bytes, display_name: str, font_path: str) -> bytes:
@@ -122,14 +185,60 @@ def compose_font_poster(raw_image_bytes: bytes, display_name: str, font_path: st
     return output.getvalue()
 
 
-def process_hero_image(slug: str, display_name: str, category: str, use_cases: list[str], keyword_phrases: dict, upload_callback, font_path: str = "") -> str:
+def process_hero_image(
+    slug: str,
+    display_name: str,
+    category: str,
+    use_cases: list[str],
+    keyword_phrases: dict,
+    upload_callback,
+    font_path: str = "",
+    existing_image_urls: Iterable[str] = (),
+    max_generation_attempts: int = 8,
+) -> str:
     """
     Generates the cinematic hero image via AI, injects XMP metadata, and uploads WebP to R2.
     Returns the WebP URL (stable key, no hash — use ?v={updated_at_unix} on the frontend for cache-busting).
     """
-    prompt = build_scene_prompt(category, use_cases, slug)
-    raw_bytes = generate_ai_image_bytes(prompt)
-    poster_bytes = compose_font_poster(raw_bytes, display_name, font_path)
+    poster_bytes = b""
+    duplicate_url = None
+    last_generation_error: Exception | None = None
+    accepted = False
+    for attempt in range(max_generation_attempts):
+        prompt = build_scene_prompt(category, use_cases, slug, attempt)
+        seed = int(hashlib.sha256(f"{slug}:{attempt}".encode("utf-8")).hexdigest()[:8], 16)
+        try:
+            raw_bytes = generate_ai_image_bytes(prompt, seed=seed)
+        except Exception as exc:
+            last_generation_error = exc
+            logger.warning(
+                "Image generation failed for %s; retrying (%s/%s): %s",
+                slug,
+                attempt + 1,
+                max_generation_attempts,
+                exc,
+            )
+            continue
+        poster_bytes = compose_font_poster(raw_bytes, display_name, font_path)
+        duplicate_url = find_duplicate_hero(poster_bytes, existing_image_urls)
+        if not duplicate_url:
+            accepted = True
+            break
+        logger.warning(
+            "Generated hero for %s is too similar to %s; retrying (%s/%s)",
+            slug,
+            duplicate_url,
+            attempt + 1,
+            max_generation_attempts,
+        )
+    if not accepted:
+        if last_generation_error and not poster_bytes:
+            raise RuntimeError(
+                f"image generator failed after {max_generation_attempts} attempts: {last_generation_error}"
+            ) from last_generation_error
+        raise ValueError(
+            f"image generator returned a duplicate hero after {max_generation_attempts} attempts"
+        )
     
     # Use English keyword for filename and XMP — concentrates relevance, avoids multilingual dilution.
     # Localized alt text is the frontend's responsibility (Astro render layer).
