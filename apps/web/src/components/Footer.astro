@@ -21,6 +21,7 @@ const basePath = locale === defaultLang ? '' : `/${locale}`;
       <nav class="footer-group" aria-label={t('footer.browse')}>
         <span class="footer-heading">{t('footer.browse')}</span>
         <a href={`${basePath}/category/display`}>{t('category.display')}</a>
+        <a href={`${basePath}/category/historical`}>{t('category.historical')}</a>
         <a href={`${basePath}/category/sans-serif`}>{t('category.sansSerif')}</a>
         <a href={`${basePath}/category/script`}>{t('category.script')}</a>
         <a href={`${basePath}/category/monospaced`}>{t('category.monospaced')}</a>
@@ -55,7 +56,7 @@ const basePath = locale === defaultLang ? '' : `/${locale}`;
   .copyright { color: var(--muted); font-size: 11px; }
   .footer-group { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
   .footer-heading { color: var(--fg); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
-  .footer-group a { color: var(--muted); font-size: 11px; transition: color 0.15s; text-transform: uppercase; letter-spacing: 0.06em; }
+  .footer-group a { color: var(--muted); font-size: 11px; line-height: 1.4; padding: 2px 0; transition: color 0.15s; text-transform: uppercase; letter-spacing: 0.06em; }
   .footer-group a:hover { color: var(--fg); }
   .footer-bottom { min-height: 52px; border-top: 0.5px solid var(--rule); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 
@@ -63,6 +64,8 @@ const basePath = locale === defaultLang ? '' : `/${locale}`;
     footer { padding: 0 20px; }
     .footer-main { grid-template-columns: 1fr 1fr; gap: 36px 24px; padding: 36px 0; }
     .footer-brand { grid-column: 1 / -1; }
+    .footer-group { gap: 4px; }
+    .footer-group a { min-height: 40px; display: flex; align-items: center; padding: 8px 0; }
     .footer-bottom { align-items: flex-start; flex-direction: column; justify-content: center; padding: 16px 0; }
   }
 </style>

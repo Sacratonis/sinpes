@@ -31,6 +31,7 @@ const fontFaceCSS = buildFontFaceCSS(font.display_name, font.variants, font.woff
   title={`${t('test.pageTitle').replace('{font}', font.display_name)} — SINPES`}
   description={t('test.pageDescription').replace('{font}', font.display_name)}
   locale={defaultLang}
+  robots="noindex,follow"
 >
   <style is:global set:html={fontFaceCSS}></style>
   <h1 class="sr-only">{t('test.pageTitle').replace('{font}', font.display_name)}</h1>

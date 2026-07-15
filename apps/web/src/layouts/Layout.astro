@@ -13,14 +13,28 @@ interface Props {
   title: string;
   description: string;
   locale?: keyof typeof languages; 
+  image?: string;
+  robots?: string;
+  structuredData?: Record<string, unknown> | Record<string, unknown>[];
 }
 
-const { title, description, locale = defaultLang } = Astro.props;
+const {
+  title,
+  description,
+  locale = defaultLang,
+  image,
+  robots = 'index,follow,max-image-preview:large',
+  structuredData,
+} = Astro.props;
 
 const siteURL = Astro.site || new URL('https://sinpes.com');
 const currentPath = Astro.url.pathname;
 const canonicalURL = generateCanonical(siteURL, currentPath);
 const hreflangLinks = generateHreflang(siteURL, currentPath, locale as keyof typeof languages);
+const socialImage = image ? new URL(image, siteURL).href : undefined;
+const serializedStructuredData = structuredData
+  ? JSON.stringify(structuredData).replace(/</g, '\\u003c')
+  : '';
 ---
 <!DOCTYPE html>
 <html lang={locale}>
@@ -29,6 +43,18 @@ const hreflangLinks = generateHreflang(siteURL, currentPath, locale as keyof typ
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <meta name="robots" content={robots} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SINPES" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:locale" content={locale} />
+    {socialImage && <meta property="og:image" content={socialImage} />}
+    <meta name="twitter:card" content={socialImage ? 'summary_large_image' : 'summary'} />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    {socialImage && <meta name="twitter:image" content={socialImage} />}
     <meta name="msvalidate.01" content="451E1BD0AE8253F7665FC14EBC0D57B6" />
     <meta name="google-site-verification" content="j52WC1RMWVBHpZXbLJeGd5SfNWlBqcTgkm74RGMvJYQ" />
     
@@ -37,6 +63,9 @@ const hreflangLinks = generateHreflang(siteURL, currentPath, locale as keyof typ
     {Object.entries(hreflangLinks).map(([lang, url]) => (
       <link rel="alternate" hreflang={lang} href={url} />
     ))}
+    {serializedStructuredData && (
+      <script type="application/ld+json" set:html={serializedStructuredData}></script>
+    )}
 
     <!-- Favicon Activation -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

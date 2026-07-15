@@ -7,8 +7,7 @@
   --rule: #E2DFD9;
   --muted: #8B8880; /* Passes WCAG AA on light background */
   
-  /* Bumped from 44px to 64px for premium editorial breathing room */
-  --nav-h: 64px; 
+  --nav-h: 80px;
   --container-max: 1180px;
 }
 
@@ -32,6 +31,10 @@ html[data-theme="dark"] {
 html { 
   -webkit-text-size-adjust: 100%; 
   scroll-behavior: smooth; 
+}
+
+@media (max-width: 720px) {
+  :root { --nav-h: 64px; }
 }
 
 /* Respect users with vestibular disorders (motion sickness) */

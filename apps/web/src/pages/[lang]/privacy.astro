@@ -13,6 +13,7 @@ const locale = lang as keyof typeof languages;
 const content = {
   es: {
     title: "Política de Privacidad | Sinpes",
+    meta: "Consulta cómo SINPES gestiona la privacidad, el almacenamiento local, el consentimiento, la publicidad, las analíticas y la protección de datos.",
     h1: "Política de Privacidad",
     lastUpdated: "Última Actualización: Julio de 2026",
     p1: "En Sinpes, estamos comprometidos a salvaguardar su privacidad y asegurar la transparencia en nuestras prácticas de procesamiento de datos. Esta Política de Privacidad describe cómo recopilamos, utilizamos y protegemos su información al acceder a nuestro archivo de tipografía y servicios relacionados.",
@@ -29,6 +30,7 @@ const content = {
   },
   pt: {
     title: "Política de Privacidade | Sinpes",
+    meta: "Veja como a SINPES gerencia privacidade, armazenamento local, consentimento, publicidade, análises e proteção de dados ao navegar e baixar fontes.",
     h1: "Política de Privacidade",
     lastUpdated: "Última Atualização: Julho de 2026",
     p1: "Na Sinpes, estamos comprometidos em proteger sua privacidade e garantir a transparência em nossas práticas de processamento de dados. Esta Política de Privacidade descreve como coletamos, usamos e protegemos suas informações ao acessar nosso arquivo de tipografia e serviços relacionados.",
@@ -46,7 +48,7 @@ const content = {
 };
 const c = content[locale as keyof typeof content] || content['es'];
 ---
-<Layout title={c.title} description={c.p1} locale={locale}>
+<Layout title={c.title} description={c.meta} locale={locale}>
   <main class="view-container legal-page">
     <h1>{c.h1}</h1>
     <p class="last-updated">{c.lastUpdated}</p>

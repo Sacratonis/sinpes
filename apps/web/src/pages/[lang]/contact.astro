@@ -7,12 +7,12 @@ export async function getStaticPaths() {
 const { lang } = Astro.params;
 const locale = lang as keyof typeof languages;
 const content = {
-  es: { title: "Contacto | Sinpes", h1: "Contáctenos", p1: "Valoramos los comentarios de la comunidad de diseño.", h2_1: "Consultas Generales", p2: "Para consultas generales, propuestas de asociación o consultas de prensa, dirija su correspondencia a: contact@sinpes.com", h2_2: "DMCA y Licencias", p3: "Si es titular de derechos de autor y cree que una tipografía se ha archivado en violación de su licencia, envíe un aviso formal a legal@sinpes.com." },
-  pt: { title: "Contato | Sinpes", h1: "Fale Conosco", p1: "Valorizamos o feedback da comunidade de design.", h2_1: "Consultas Gerais", p2: "Para perguntas gerais, propostas de parceria ou consultas de imprensa, direcione sua correspondência para: contact@sinpes.com", h2_2: "DMCA e Licenciamento", p3: "Se você for detentor de direitos autorais e acreditar que uma fonte foi arquivada em violação de sua licença, envie um aviso formal para legal@sinpes.com." }
+  es: { title: "Contacto | Sinpes", meta: "Contacta con SINPES para enviar fuentes, informar problemas técnicos, proponer colaboraciones, realizar consultas de prensa o comunicar asuntos legales.", h1: "Contáctenos", p1: "Valoramos los comentarios de la comunidad de diseño.", h2_1: "Consultas Generales", p2: "Para consultas generales, propuestas de asociación o consultas de prensa, dirija su correspondencia a: contact@sinpes.com", h2_2: "DMCA y Licencias", p3: "Si es titular de derechos de autor y cree que una tipografía se ha archivado en violación de su licencia, envíe un aviso formal a legal@sinpes.com." },
+  pt: { title: "Contato | Sinpes", meta: "Entre em contato com a SINPES para enviar fontes, relatar problemas técnicos, propor parcerias, fazer consultas de imprensa ou tratar assuntos legais.", h1: "Fale Conosco", p1: "Valorizamos o feedback da comunidade de design.", h2_1: "Consultas Gerais", p2: "Para perguntas gerais, propostas de parceria ou consultas de imprensa, direcione sua correspondência para: contact@sinpes.com", h2_2: "DMCA e Licenciamento", p3: "Se você for detentor de direitos autorais e acreditar que uma fonte foi arquivada em violação de sua licença, envie um aviso formal para legal@sinpes.com." }
 };
 const c = content[locale] || content['es'];
 ---
-<Layout title={c.title} locale={locale}>
+<Layout title={c.title} description={c.meta} locale={locale}>
   <main class="view-container legal-page">
     <h1>{c.h1}</h1><p>{c.p1}</p><h2>{c.h2_1}</h2><p>{c.p2}</p><h2>{c.h2_2}</h2><p>{c.p3}</p>
   </main>

@@ -6,13 +6,7 @@ import { getLanguageUrl } from '../i18n/utils';
 
 export function generateCanonical(siteUrl: string | URL, pathname: string): string {
   const url = typeof siteUrl === 'string' ? new URL(siteUrl) : siteUrl;
-  
-  // Strip trailing slash for consistent SEO equity, unless it's the root
-  const cleanPath = pathname.endsWith('/') && pathname.length > 1 
-    ? pathname.slice(0, -1) 
-    : pathname;
-    
-  return new URL(cleanPath, url).href;
+  return new URL(normalizeSeoPath(pathname), url).href;
 }
 
 export function generateHreflang(siteUrl: string | URL, pathname: string, currentLocale: keyof typeof languages) {
@@ -22,11 +16,27 @@ export function generateHreflang(siteUrl: string | URL, pathname: string, curren
   
   for (const langCode of Object.keys(languages)) {
     const path = getLanguageUrl(pathname, currentLocale as any, langCode as any);
-    links[langCode] = new URL(path, url).href;
+    links[langCode] = new URL(normalizeSeoPath(path), url).href;
   }
   
   const xDefaultPath = getLanguageUrl(pathname, currentLocale as any, defaultLang as any);
-  links['x-default'] = new URL(xDefaultPath, url).href;
+  links['x-default'] = new URL(normalizeSeoPath(xDefaultPath), url).href;
   
   return links;
+}
+
+function normalizeSeoPath(pathname: string): string {
+  const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  if (path === '/' || path.endsWith('/') || /\/[^/]+\.[a-z0-9]+$/i.test(path)) return path;
+  return `${path}/`;
+}
+
+export function buildMetaDescription(value: string, maxLength = 160): string {
+  const clean = String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxLength) return clean;
+
+  const clipped = clean.slice(0, maxLength - 1);
+  const lastSpace = clipped.lastIndexOf(' ');
+  const safe = lastSpace > Math.floor(maxLength * 0.7) ? clipped.slice(0, lastSpace) : clipped;
+  return `${safe.replace(/[,:;\s]+$/, '')}…`;
 }

@@ -32,14 +32,42 @@ const { categoryName, categories, filteredFonts } = Astro.props;
 const t = useTranslations(locale);
 const title = t('category.title').replace('{category}', categoryName);
 const description = t('category.description').replace('{category}', categoryName);
+const heading = title.replace(/\s+—\s+SINPES$/i, '');
+const basePath = `/${locale}`;
+const pageUrl = new URL(`${basePath}/category/${slug}/`, Astro.site || 'https://sinpes.com').href;
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'CollectionPage',
+      name: heading,
+      description,
+      url: pageUrl,
+      inLanguage: locale,
+      mainEntity: { '@type': 'ItemList', numberOfItems: filteredFonts.length },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: t('nav.library'), item: new URL(`${basePath}/`, Astro.site || 'https://sinpes.com').href },
+        { '@type': 'ListItem', position: 2, name: heading, item: pageUrl },
+      ],
+    },
+  ],
+};
 ---
 
 <Layout 
   title={title}
   description={description}
   locale={locale}
+  structuredData={structuredData}
 >
   <CategoryRail locale={locale} activeCategory={slug} categories={categories} />
+  <header class="category-intro view-container">
+    <h1>{heading}</h1>
+    <span class="tabular">{t('category.fontCount').replace('{count}', String(filteredFonts.length))}</span>
+  </header>
   <PreviewBar locale={locale} />
   
   <main class="view-container">
@@ -56,6 +84,17 @@ const description = t('category.description').replace('{category}', categoryName
 </Layout>
 
 <style>
+  .category-intro {
+    min-height: 72px;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    border-bottom: 0.5px solid var(--rule);
+  }
+  .category-intro h1 { font-size: clamp(20px, 3vw, 32px); font-weight: 500; letter-spacing: -0.02em; }
+  .category-intro span { color: var(--muted); font-size: 11px; white-space: nowrap; }
   .font-list {
     width: 100%;
   }
@@ -80,5 +119,8 @@ const description = t('category.description').replace('{category}', categoryName
     text-align: center;
     color: var(--muted);
     font-size: 14px;
+  }
+  @media (max-width: 720px) {
+    .category-intro { min-height: 64px; padding: 14px 16px; }
   }
 </style>

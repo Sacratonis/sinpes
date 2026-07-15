@@ -13,6 +13,7 @@ const locale = lang as keyof typeof languages;
 const content = {
   es: {
     title: "Aviso Legal | Sinpes",
+    meta: "Consulta el aviso legal de SINPES sobre disponibilidad de fuentes, propiedad intelectual de terceros, enlaces externos, garantías y responsabilidad.",
     h1: "Aviso Legal",
     lastUpdated: "Última Actualización: Julio de 2026",
     p1: "La información y los activos digitales proporcionados por Sinpes son para fines informativos y de diseño general. Si bien nos esforzamos por alcanzar la excelencia en nuestro proceso de curaduría, no hacemos representaciones ni garantías de ningún tipo sobre la integridad, precisión, confiabilidad o idoneidad de la tipografía alojada en nuestra plataforma.",
@@ -27,6 +28,7 @@ const content = {
   },
   pt: {
     title: "Aviso Legal | Sinpes",
+    meta: "Consulte o aviso legal da SINPES sobre disponibilidade de fontes, propriedade intelectual de terceiros, links externos, garantias e responsabilidade.",
     h1: "Aviso Legal",
     lastUpdated: "Última Atualização: Julho de 2026",
     p1: "As informações e ativos digitais fornecidos pela Sinpes são para fins informativos e de design em geral. Embora nos esforcemos pela excelência em nosso processo de curadoria, não fazemos representações ou garantias de qualquer tipo sobre a integridade, precisão, confiabilidade ou adequação da tipografia hospedada em nossa plataforma.",
@@ -42,7 +44,7 @@ const content = {
 };
 const c = content[locale as keyof typeof content] || content['es'];
 ---
-<Layout title={c.title} description={c.p1} locale={locale}>
+<Layout title={c.title} description={c.meta} locale={locale}>
   <main class="view-container legal-page">
     <h1>{c.h1}</h1>
     <p class="last-updated">{c.lastUpdated}</p>

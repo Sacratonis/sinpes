@@ -13,6 +13,7 @@ const locale = lang as keyof typeof languages;
 const content = {
   es: {
     title: "Sobre el Archivo | Sinpes",
+    meta: "Conoce cómo SINPES selecciona, revisa y distribuye familias tipográficas gratuitas para diseñadores, desarrolladores, sitios web, aplicaciones e impresión.",
     h1: "Sobre Sinpes",
     p1: "Fundado como respuesta a la fragmentación de las fundiciones digitales, Sinpes se estableció para curar las mejores tipografías de código abierto del mundo. Nuestra misión va más allá de la agregación; realizamos auditorías tipográficas rigurosas para asegurar una perfección absoluta a nivel de píxel tanto para interfaces digitales de alta resolución como para flujos de trabajo editoriales impresos.",
     h2_1: "Nuestros Estándares de Curaduría",
@@ -24,6 +25,7 @@ const content = {
   },
   pt: {
     title: "Sobre o Arquivo | Sinpes",
+    meta: "Conheça como a SINPES seleciona, revisa e distribui famílias tipográficas gratuitas para designers, desenvolvedores, sites, aplicativos e impressão.",
     h1: "Sobre a Sinpes",
     p1: "Fundada como uma resposta à fragmentação das fundições digitais, a Sinpes foi estabelecida para curar as melhores tipografias de código aberto do mundo. Nossa missão vai além da agregação; realizamos auditorias tipográficas rigorosas para garantir a perfeição absoluta a nível de pixel, tanto para interfaces digitais de alta resolução quanto para fluxos de trabalho editoriais impressos.",
     h2_1: "Nossos Padrões de Curadoria",
@@ -36,7 +38,7 @@ const content = {
 };
 const c = content[locale as keyof typeof content] || content['es'];
 ---
-<Layout title={c.title} description={c.p1} locale={locale}>
+<Layout title={c.title} description={c.meta} locale={locale}>
   <main class="view-container legal-page">
     <h1>{c.h1}</h1>
     <p>{c.p1}</p>
