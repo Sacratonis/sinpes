@@ -106,3 +106,20 @@ Every landing page still requires real inventory and demand evidence.
   filters, internal-link modules, and newly targeted search intents.
 - Quarterly: decide which verified patterns improved SINPES impressions,
   indexing, rankings, clicks, and downloads.
+
+## Sitemap pattern adopted by SINPES
+
+DafontFree separates large content types into independent sitemaps. SINPES
+adopts the useful monitoring pattern without copying its WordPress structure:
+
+- `font-sitemap.xml` for localized font-family pages.
+- `category-sitemap.xml` for localized category pages.
+- `blog-sitemap.xml` for localized editorial indexes and articles.
+- `page-sitemap.xml` for home, about, contact, and legal pages.
+- `image-sitemap.xml` for font-page hero images.
+- `sitemap-index.xml` as the single canonical sitemap index.
+
+SINPES intentionally does not copy competitor `priority` or `changefreq`
+values because Google ignores them. `lastmod` is included only when backed by
+real font or article update data. Every localized URL keeps EN, ES, PT, and
+`x-default` alternate annotations.

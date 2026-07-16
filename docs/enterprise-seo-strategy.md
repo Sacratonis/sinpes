@@ -63,8 +63,8 @@ Planned commands:
 - [x] Submit the image sitemap in Google Search Console.
 - [x] Add Bing Webmaster verification to every public layout.
 - [x] Implement IndexNow URL queueing and post-deployment submission locally.
-- [ ] Deploy IndexNow and verify the public key URL.
-- [ ] Run the one-time full-site IndexNow submission after deployment.
+- [x] Deploy IndexNow and verify the public key URL.
+- [x] Run the one-time full-site IndexNow submission after deployment.
 - [ ] Record page and image impressions, clicks, CTR, and average position.
 - [x] Add images to the XML sitemap.
 - [x] Add `primaryImageOfPage` and `ImageObject` where appropriate.
@@ -162,9 +162,9 @@ in local code.
 - [ ] Validate homepage JSON-LD with Schema.org and Google Rich Results tools.
 - [ ] Verify `Organization`, `WebSite`, `CollectionPage`, and `ItemList` entities.
 - [ ] Confirm every homepage font URL in the schema is canonical and public.
-- [ ] Confirm the IndexNow key is publicly reachable at its exact root URL.
-- [ ] Run `npm run seo:indexnow` once against the live sitemap.
-- [ ] Confirm Bing accepts the full-site submission.
+- [x] Confirm the IndexNow key is publicly reachable at its exact root URL.
+- [x] Run `npm run seo:indexnow` once against the live sitemap.
+- [x] Confirm Bing accepts the full-site submission.
 - [ ] Confirm later font and article deployments submit only queued changed URLs.
 - [ ] Verify failed IndexNow submissions remain queued for retry.
 - [ ] Record the deployment hash and rollback instructions.
@@ -411,6 +411,28 @@ Primary success metrics:
 - [ ] More image impressions and clicks.
 - [ ] More font downloads from organic sessions.
 - [ ] No manual actions, doorway-page growth, or scaled-content quality failures.
+
+### M — Sitemap architecture
+
+- [x] Split fonts, categories, editorial content, static pages, and images into
+  separate generated sitemap files locally.
+- [x] Keep `sitemap-index.xml` as the canonical discovery entry point.
+- [x] Keep EN, ES, PT, and `x-default` alternate annotations.
+- [x] Use real font and article dates for `lastmod`.
+- [x] Exclude ignored `priority` and `changefreq` values.
+- [x] Keep `sitemap-0.xml` temporarily as a compatibility URL.
+- [x] Make the one-time IndexNow script read the sitemap index recursively.
+- [x] Add build checks for sitemap type separation, duplicates, canonical host,
+  image-page consistency, and legacy compatibility.
+- [ ] Deploy the split sitemap architecture.
+- [ ] Confirm all five child sitemaps return HTTP 200.
+- [ ] Confirm production counts match fonts, categories, articles, pages, and images.
+- [ ] Confirm Search Console reads every child sitemap successfully.
+- [ ] Remove the old direct `sitemap-0.xml` Search Console submission after the
+  split sitemaps are accepted.
+- [ ] Remove the compatibility sitemap in a later deployment after crawler logs
+  show that no search engine still requests it.
+- [ ] Track indexed and excluded counts by sitemap type each week.
 
 ## Safety and quality gates
 

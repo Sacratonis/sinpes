@@ -1,0 +1,68 @@
+[
+  {
+    "slug": "complete-typography-guide",
+    "date": "2026-07-16T12:00:00Z",
+    "title": {
+      "en": "A Complete Typography Guide",
+      "es": "Una guía completa de tipografía",
+      "pt": "Um guia completo de tipografia"
+    },
+    "excerpt": {
+      "en": "A practical guide to building clear typographic hierarchy.",
+      "es": "Una guía práctica para crear una jerarquía tipográfica clara.",
+      "pt": "Um guia prático para criar uma hierarquia tipográfica clara."
+    },
+    "content": {
+      "en": "<p>Use verified font files to test hierarchy in context.</p><h2 id=\"choose-roles\">Choose clear roles</h2><p>Assign each typeface a specific job.</p>",
+      "es": "<p>Usa archivos de fuentes verificados para probar la jerarquía en contexto.</p><h2 id=\"elige-funciones\">Elige funciones claras</h2><p>Asigna a cada tipografía una función específica.</p>",
+      "pt": "<p>Use arquivos de fontes verificados para testar a hierarquia em contexto.</p><h2 id=\"escolha-funcoes\">Escolha funções claras</h2><p>Atribua a cada fonte uma função específica.</p>"
+    },
+    "image_url": "https://images.example.com/typography-guide.webp",
+    "image_alt_text": "Typography hierarchy shown in an editorial layout",
+    "target_keyword": "typography guide"
+  },
+  {
+    "slug": "english-only-font-pairing",
+    "date": "2026-07-15T12:00:00Z",
+    "title": {
+      "en": "How to Pair Fonts",
+      "es": "",
+      "pt": ""
+    },
+    "excerpt": {
+      "en": "A practical method for pairing fonts without weakening readability.",
+      "es": "",
+      "pt": ""
+    },
+    "content": {
+      "en": "<p>Start by assigning one role to each font.</p><h2 id=\"test-pairings\">Test pairings</h2><p>Review the result at realistic sizes.</p>",
+      "es": "",
+      "pt": ""
+    },
+    "image_url": "https://images.example.com/font-pairing.webp",
+    "image_alt_text": "Two typefaces compared in a clear layout",
+    "target_keyword": "how to pair fonts"
+  },
+  {
+    "slug": "localized-editorial-type",
+    "date": "2026-07-14T12:00:00Z",
+    "title": {
+      "en": "",
+      "es": "Tipografía para diseño editorial",
+      "pt": "Tipografia para design editorial"
+    },
+    "excerpt": {
+      "en": "",
+      "es": "Decisiones prácticas para una jerarquía editorial legible.",
+      "pt": "Decisões práticas para uma hierarquia editorial legível."
+    },
+    "content": {
+      "en": "",
+      "es": "<p>Define funciones claras para títulos y texto.</p><h2 id=\"prueba-contexto\">Prueba el contexto</h2><p>Revisa cada fuente en el diseño final.</p>",
+      "pt": "<p>Defina funções claras para títulos e texto.</p><h2 id=\"teste-contexto\">Teste o contexto</h2><p>Revise cada fonte no design final.</p>"
+    },
+    "image_url": "",
+    "image_alt_text": "",
+    "target_keyword": "tipografía editorial"
+  }
+]

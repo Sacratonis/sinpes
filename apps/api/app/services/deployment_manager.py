@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import sqlite3
 import time
 import urllib.request
 from dataclasses import dataclass
@@ -11,6 +13,9 @@ from datetime import datetime, timezone
 from app.core.config import config
 from app.repositories.meta_repo import MetaRepository
 from app.services.indexnow import queue_indexnow_urls, submit_pending_indexnow
+
+
+PENDING_ARTICLES_KEY = "pending_article_publication_ids"
 
 
 @dataclass(frozen=True)
@@ -56,6 +61,20 @@ def _clear_stale_build_lock(meta: MetaRepository, now: datetime) -> bool:
     meta.set_value("build_in_progress", "false")
     meta.set_value("pending_snapshot_hash", "")
     meta.set_value("last_build_error", "Cloudflare build confirmation timed out")
+    try:
+        pending_ids = json.loads(meta.get_value(PENDING_ARTICLES_KEY) or "[]")
+        if pending_ids:
+            placeholders = ",".join("?" for _ in pending_ids)
+            meta.conn.execute(
+                f"""UPDATE article_queue SET status='approved', published_at=NULL
+                    WHERE id IN ({placeholders}) AND status='publishing'""",
+                pending_ids,
+            )
+        meta.set_value(PENDING_ARTICLES_KEY, "[]")
+    except (sqlite3.OperationalError, TypeError, json.JSONDecodeError):
+        # Older/test schemas may not have the article queue; the build lock is
+        # still safely cleared and the next real build will reconcile content.
+        meta.set_value(PENDING_ARTICLES_KEY, "[]")
     meta.conn.commit()
     return True
 
@@ -83,6 +102,7 @@ def trigger_deployment(
     artifact_hash: str,
     source: str,
     indexnow_urls: list[str] | None = None,
+    pending_article_ids: list[str] | None = None,
     force: bool = False,
     automatic: bool = False,
     now: datetime | None = None,
@@ -123,6 +143,8 @@ def trigger_deployment(
     meta.set_value("last_build_error", "")
     meta.set_value("last_deployment_source", source)
     meta.set_value("pending_snapshot_hash", artifact_hash)
+    if pending_article_ids:
+        meta.set_value(PENDING_ARTICLES_KEY, json.dumps(pending_article_ids))
     if indexnow_urls:
         queue_indexnow_urls(conn, indexnow_urls)
     conn.commit()
@@ -136,6 +158,7 @@ def trigger_deployment(
         meta.set_value("build_in_progress", "false")
         meta.set_value("last_build_error", str(exc))
         meta.set_value("pending_snapshot_hash", "")
+        meta.set_value(PENDING_ARTICLES_KEY, "[]")
         conn.commit()
         raise
 
@@ -156,6 +179,29 @@ def confirm_deployment_success(conn) -> dict:
     if not pending_hash:
         return {"status": "ignored", "reason": "deployment has no pending snapshot hash"}
 
+    try:
+        pending_ids = json.loads(meta.get_value(PENDING_ARTICLES_KEY) or "[]")
+    except (TypeError, json.JSONDecodeError):
+        pending_ids = []
+    published_at = datetime.now(timezone.utc).isoformat()
+    published_articles = []
+    if pending_ids:
+        placeholders = ",".join("?" for _ in pending_ids)
+        try:
+            rows = conn.execute(
+                f"""SELECT id,slug,title FROM article_queue
+                    WHERE id IN ({placeholders}) AND status='publishing'""",
+                pending_ids,
+            ).fetchall()
+            conn.execute(
+                f"""UPDATE article_queue SET status='published', published_at=?
+                    WHERE id IN ({placeholders}) AND status='publishing'""",
+                [published_at, *pending_ids],
+            )
+            published_articles = [dict(row) for row in rows]
+        except sqlite3.OperationalError:
+            published_articles = []
+    meta.set_value(PENDING_ARTICLES_KEY, "[]")
     meta.set_value("last_successful_build_at", str(time.time()))
     meta.set_value("last_successful_snapshot_hash", pending_hash)
     meta.set_value("pending_snapshot_hash", "")
@@ -163,4 +209,9 @@ def confirm_deployment_success(conn) -> dict:
     meta.set_value("last_build_error", "")
     conn.commit()
     indexnow = submit_pending_indexnow(conn)
-    return {"status": "ok", "snapshot_hash": pending_hash, "indexnow": indexnow}
+    return {
+        "status": "ok",
+        "snapshot_hash": pending_hash,
+        "indexnow": indexnow,
+        "published_articles": published_articles,
+    }

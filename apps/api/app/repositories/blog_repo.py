@@ -17,4 +17,9 @@ class BlogRepository:
         )
 
     def get_published_articles(self):
-        return self.conn.execute("SELECT * FROM article_queue WHERE status = 'published'").fetchall()
+        # A build snapshot must include articles while their deployment is
+        # awaiting Cloudflare's success callback.  They are only visible on
+        # the live site after that callback promotes them to ``published``.
+        return self.conn.execute(
+            "SELECT * FROM article_queue WHERE status IN ('published', 'publishing')"
+        ).fetchall()

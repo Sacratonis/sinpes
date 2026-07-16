@@ -64,23 +64,44 @@ def _narrower_angle(topic: str) -> str:
 
 class _ArticleHTMLValidator(HTMLParser):
     allowed = {"p", "h2", "h3", "ul", "ol", "li", "strong", "em", "a", "pre", "code", "blockquote"}
+    allowed_attributes = {"h2": {"id"}, "a": {"href"}}
 
     def __init__(self):
         super().__init__()
         self.stack = []
         self.h2_ids = set()
+        self.font_links = []
+        self.font_link_labels = []
+        self._active_font_link = None
+        self._active_font_label = []
 
     def handle_starttag(self, tag, attrs):
         if tag not in self.allowed:
             raise ValueError(f"Unsupported HTML tag: {tag}")
+        attribute_names = [name for name, _value in attrs]
+        if len(attribute_names) != len(set(attribute_names)):
+            raise ValueError(f"Duplicate HTML attribute on <{tag}>")
+        unsupported = set(attribute_names) - self.allowed_attributes.get(tag, set())
+        if unsupported:
+            raise ValueError(
+                f"Unsupported HTML attribute on <{tag}>: {sorted(unsupported)[0]}"
+            )
         attributes = dict(attrs)
         if tag == "h2":
             heading_id = attributes.get("id", "")
             if not SLUG_RE.fullmatch(heading_id) or heading_id in self.h2_ids:
                 raise ValueError("Every H2 requires a unique kebab-case id")
             self.h2_ids.add(heading_id)
-        if tag == "a" and not attributes.get("href", "").startswith("/font/"):
-            raise ValueError("Article links must point to SINPES font pages")
+        if tag == "a":
+            if self._active_font_link is not None:
+                raise ValueError("Nested article links are not allowed")
+            href = attributes.get("href", "")
+            match = re.fullmatch(r"/font/([a-z0-9]+(?:-[a-z0-9]+)*)/?", href)
+            if not match:
+                raise ValueError("Article links must be canonical SINPES font paths")
+            self.font_links.append(match.group(1))
+            self._active_font_link = match.group(1)
+            self._active_font_label = []
         self.stack.append(tag)
 
     def handle_endtag(self, tag):
@@ -88,6 +109,27 @@ class _ArticleHTMLValidator(HTMLParser):
             expected = self.stack[-1] if self.stack else "nothing"
             raise ValueError(f"Malformed HTML: expected </{expected}>, received </{tag}>")
         self.stack.pop()
+        if tag == "a":
+            label = " ".join("".join(self._active_font_label).split())
+            self.font_link_labels.append((self._active_font_link, label))
+            self._active_font_link = None
+            self._active_font_label = []
+
+    def handle_data(self, data):
+        if self._active_font_link is not None:
+            self._active_font_label.append(data)
+
+    def handle_startendtag(self, tag, attrs):
+        raise ValueError(f"Self-closing HTML tag is not allowed: {tag}")
+
+    def handle_comment(self, data):
+        raise ValueError("HTML comments are not allowed")
+
+    def handle_decl(self, decl):
+        raise ValueError("HTML declarations are not allowed")
+
+    def handle_pi(self, data):
+        raise ValueError("HTML processing instructions are not allowed")
 
 
 def _validate_html(body: str) -> _ArticleHTMLValidator:
@@ -119,7 +161,7 @@ def _words(value: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", value.lower())
 
 
-def _catalog_fonts(conn, topic: str, limit: int = 4) -> list[dict]:
+def _catalog_fonts(conn, topic: str, limit: int = 3) -> list[dict]:
     rows = conn.execute(
         """
         SELECT f.slug, f.display_name, f.category, f.use_cases, f.weights, f.variants, f.is_variable,
@@ -188,7 +230,12 @@ def _validate_article(payload: dict, fonts: list[dict], language: str, evidence_
         raise ValueError("Writer response must declare valid or invalid")
 
     required = ("title", "slug", "meta_description", "target_keyword", "secondary_keywords", "body_html", "referenced_font_slugs", "font_claims", "content_scope")
-    missing = [key for key in required if not payload.get(key)]
+    missing = [
+        key for key in required
+        if key not in payload
+        or payload[key] is None
+        or (isinstance(payload[key], str) and not payload[key].strip())
+    ]
     if missing:
         raise ValueError("Writer response is missing: " + ", ".join(missing))
     slug = str(payload["slug"]).strip().lower()
@@ -223,12 +270,34 @@ def _validate_article(payload: dict, fonts: list[dict], language: str, evidence_
         raise ValueError(f"{scope} article is too long at {word_count} words; maximum is {maximum}")
     validate_evidence_bound_text(str(payload["title"]), body, evidence_level)
     available = {font["slug"] for font in fonts}
-    referenced = list(dict.fromkeys(payload["referenced_font_slugs"]))
-    if len(referenced) < 2 or not set(referenced).issubset(available):
-        raise ValueError("Article must reference at least two supplied SINPES fonts")
-    for font_slug in referenced:
-        if f'/font/{font_slug}/' not in body and f'/font/{font_slug}' not in body:
-            raise ValueError(f"Article is missing an internal link to {font_slug}")
+    raw_referenced = payload["referenced_font_slugs"]
+    if not isinstance(raw_referenced, list) or not all(
+        isinstance(slug, str) and SLUG_RE.fullmatch(slug) for slug in raw_referenced
+    ):
+        raise ValueError("referenced_font_slugs must be an array of canonical font slugs")
+    referenced = list(dict.fromkeys(raw_referenced))
+    if len(referenced) != len(raw_referenced):
+        raise ValueError("referenced_font_slugs must not contain duplicates")
+    if not 2 <= len(referenced) <= 3 or not set(referenced).issubset(available):
+        raise ValueError("Article must reference exactly two or three supplied SINPES fonts")
+    linked = set(html_structure.font_links)
+    if linked != set(referenced):
+        missing = sorted(set(referenced) - linked)
+        extra = sorted(linked - set(referenced))
+        details = []
+        if missing:
+            details.append("missing links: " + ", ".join(missing))
+        if extra:
+            details.append("undeclared links: " + ", ".join(extra))
+        raise ValueError(
+            "Font links must exactly match referenced_font_slugs (" + "; ".join(details) + ")"
+        )
+    display_names = {font["slug"]: str(font.get("display_name") or "").strip() for font in fonts}
+    for font_slug, label in html_structure.font_link_labels:
+        if label != display_names[font_slug]:
+            raise ValueError(
+                f"Font link text for {font_slug} must exactly match its registry display name"
+            )
     claims = _validate_font_claims(payload["font_claims"], fonts, referenced, body)
     return {
         **payload,
@@ -323,7 +392,8 @@ Use supplied fonts only as neutral examples to test or apply. Beyond weights, st
 status, do not state or compare any property of a supplied font. Any sentence containing a font
 link or font name MUST begin with one of these action verbs: Apply, Test, Compare, Use, Set, Switch,
 Repeat, Try, Swap, or Run. It may not describe why the font looks, feels, or suits the task.
-Reference at least two supplied fonts naturally and link each one using /font/<slug>/. Body must be
+Reference exactly two or three supplied fonts naturally and link each one using /font/<slug>/, with the
+visible link text copied exactly from that font's supplied display_name. Body must be
 safe semantic HTML using p, h2, h3, ul, ol, li, strong, em, a, pre, code, and blockquote tags. Every H2 needs a kebab-case
 id. Return JSON only with:
 validity, reasoning, title, slug, meta_description (one sentence, max 160 characters), target_keyword,
@@ -419,11 +489,13 @@ def queue_manual_article(conn, title: str, meta: str, font_slugs: list[str], bod
     if len(meta) > 160:
         raise ValueError("Meta description exceeds 160 characters")
     referenced = list(dict.fromkeys(slug.strip() for slug in font_slugs if slug.strip()))
-    if len(referenced) < 2:
-        raise ValueError("At least two font slugs are required")
+    if not 2 <= len(referenced) <= 3:
+        raise ValueError("Exactly two or three font slugs are required")
     placeholders = ",".join("?" for _ in referenced)
     fonts = conn.execute(
-        f"""SELECT f.slug, f.weights, f.variants, f.is_variable, COALESCE(t.seo_image_url, '') AS seo_image_url
+        f"""SELECT f.slug, f.display_name, f.category, f.use_cases, f.weights, f.variants, f.is_variable,
+                   COALESCE(t.description, '') AS description,
+                   COALESCE(t.seo_image_url, '') AS seo_image_url
             FROM font_registry f LEFT JOIN font_translations t ON t.slug=f.slug AND t.locale='en'
             WHERE f.status='active' AND f.slug IN ({placeholders})""", referenced,
     ).fetchall()
@@ -450,6 +522,27 @@ def queue_manual_article(conn, title: str, meta: str, font_slugs: list[str], bod
     font_claims = [
         {"slug": row["slug"], **_font_capabilities(row)} for row in fonts
     ]
+    content_scope = "deep_dive" if word_count >= 1000 else "guide"
+    validated = _validate_article(
+        {
+            "validity": "valid",
+            "reasoning": "Manually submitted and validated",
+            "title": title,
+            "slug": slug,
+            "meta_description": meta,
+            "target_keyword": title,
+            "secondary_keywords": [],
+            "body_html": body_html,
+            "referenced_font_slugs": referenced,
+            "font_claims": font_claims,
+            "content_scope": content_scope,
+        },
+        fonts,
+        "en",
+        "none",
+        content_scope,
+        _narrower_angle(title),
+    )
     conn.execute(
         """INSERT INTO article_queue (
             id, source_topic, source_keyword_data, language, validity, validity_reasoning,
@@ -458,30 +551,130 @@ def queue_manual_article(conn, title: str, meta: str, font_slugs: list[str], bod
             content_scope
         ) VALUES (?, 'manual', ?, 'en', 'valid', 'Manually submitted and validated',
                   ?, ?, ?, ?, '[]', ?, ?, ?, ?, NULL, NULL, ?, 'awaiting_image', ?, ?)""",
-        (article_id, json.dumps({"content_integrity": integrity_report}), title, slug, meta, title, body_html, body_html, json.dumps(referenced),
-         json.dumps(font_claims), word_count, datetime.now(timezone.utc).isoformat(),
-         "deep_dive" if word_count >= 1000 else "guide"),
+        (article_id, json.dumps({"content_integrity": integrity_report}), title, slug, meta, title,
+         validated["body_html"], validated["body_html"], json.dumps(validated["referenced_font_slugs"]),
+         json.dumps(validated["font_claims"]), validated["word_count"], datetime.now(timezone.utc).isoformat(),
+         validated["content_scope"]),
     )
     conn.commit()
     return article_id
 
 
 def publication_integrity_report(conn, article_id: str) -> dict:
-    """Re-run deterministic conflicts immediately before approval or publication."""
+    """Re-run the complete stored contract immediately before approval or publication."""
+    return validate_stored_article(conn, article_id, persist=True)["content_integrity"]
+
+
+def validate_stored_article(conn, article_id: str, *, persist: bool = False) -> dict:
+    """Validate the complete stored article against current registry and integrity data."""
     row = conn.execute(
-        "SELECT id,target_keyword,language,source_keyword_data FROM article_queue WHERE id=?",
+        "SELECT * FROM article_queue WHERE id=?",
         (article_id,),
     ).fetchone()
     if not row:
         raise ValueError("Article not found")
+    row = dict(row)
+    if row.get("validity") != "valid":
+        raise ValueError("Stored article is not valid")
     try:
         source_data = json.loads(row["source_keyword_data"] or "{}")
     except json.JSONDecodeError:
         source_data = {}
-    return enforce_keyword_integrity(
+    try:
+        referenced = list(dict.fromkeys(json.loads(row["referenced_font_slugs"] or "[]")))
+        claims = json.loads(row["font_claims"] or "[]")
+        secondary_keywords = json.loads(row["secondary_keywords"] or "[]")
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("Stored article contains invalid JSON metadata") from exc
+    if not referenced:
+        raise ValueError("Stored article has no referenced fonts")
+
+    placeholders = ",".join("?" for _ in referenced)
+    fonts = conn.execute(
+        f"""
+        SELECT f.slug, f.display_name, f.category, f.use_cases, f.weights, f.variants, f.is_variable,
+               COALESCE(t.description, '') AS description,
+               COALESCE(t.seo_image_url, '') AS seo_image_url
+        FROM font_registry f
+        LEFT JOIN font_translations t ON t.slug=f.slug AND t.locale='en'
+        WHERE f.status='active' AND f.slug IN ({placeholders})
+        """,
+        referenced,
+    ).fetchall()
+    fonts = [dict(font) for font in fonts]
+    if len({font["slug"] for font in fonts}) != len(referenced):
+        raise ValueError("One or more referenced fonts are missing or inactive")
+
+    required_scope = row.get("content_scope") or _required_scope(row.get("source_topic") or "")
+    validated = _validate_article(
+        {
+            "validity": row.get("validity") or "valid",
+            "reasoning": row.get("validity_reasoning") or "",
+            "title": row.get("title"),
+            "slug": row.get("slug"),
+            "meta_description": row.get("meta_description"),
+            "target_keyword": row.get("target_keyword"),
+            "secondary_keywords": secondary_keywords,
+            "body_html": row.get("body_html") or row.get("body_markdown") or "",
+            "referenced_font_slugs": referenced,
+            "font_claims": claims,
+            "content_scope": required_scope,
+        },
+        fonts,
+        row.get("language") or "en",
+        _evidence_level(source_data),
+        required_scope,
+        _narrower_angle(row.get("source_topic") or ""),
+    )
+    integrity = enforce_keyword_integrity(
         conn,
         row["target_keyword"],
         row["language"],
         intent_key=source_data.get("intent_key"),
         exclude_article_id=row["id"],
     )
+    if persist:
+        conn.execute(
+            """UPDATE article_queue
+               SET word_count=?, body_html=?, referenced_font_slugs=?, font_claims=?
+               WHERE id=?""",
+            (
+                validated["word_count"],
+                validated["body_html"],
+                json.dumps(validated["referenced_font_slugs"]),
+                json.dumps(validated["font_claims"]),
+                article_id,
+            ),
+        )
+    return {**validated, "content_integrity": integrity}
+
+
+def edit_stored_article(conn, article_id: str, field: str, value: str) -> bool:
+    """Apply an edit only when the complete stored article remains valid."""
+    columns = {"title": "title", "meta": "meta_description", "body": "body_html"}
+    if field not in columns:
+        raise ValueError("Editable field must be title, meta, or body")
+    value = value.strip()
+    if not value:
+        raise ValueError("Edited value cannot be empty")
+    if field == "meta" and len(value) > 160:
+        raise ValueError("Meta description must be 160 characters or fewer")
+
+    conn.execute("SAVEPOINT writer_article_edit")
+    try:
+        cursor = conn.execute(
+            f"""UPDATE article_queue SET {columns[field]}=?, status='edited'
+                WHERE id=? AND status IN ('pending_review','edited','rejected')""",
+            (value, article_id),
+        )
+        if cursor.rowcount != 1:
+            conn.execute("ROLLBACK TO writer_article_edit")
+            conn.execute("RELEASE writer_article_edit")
+            return False
+        validate_stored_article(conn, article_id, persist=True)
+        conn.execute("RELEASE writer_article_edit")
+        return True
+    except Exception:
+        conn.execute("ROLLBACK TO writer_article_edit")
+        conn.execute("RELEASE writer_article_edit")
+        raise

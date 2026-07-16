@@ -1,31 +1,27 @@
 import type { APIRoute } from 'astro';
 import { loadFontRegistry } from '../content/fonts/loader';
+import {
+  SITEMAP_LOCALES,
+  escapeXml,
+  formatLastmod,
+  localeUrl,
+  xmlResponse,
+} from '../lib/sitemap';
 
 export const prerender = true;
 
-const site = 'https://sinpes.com';
-const locales = ['en', 'es', 'pt'] as const;
-
-function escapeXml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&apos;');
-}
-
 export const GET: APIRoute = async () => {
   const fonts = await loadFontRegistry();
-  const entries = fonts.flatMap((font) => locales.flatMap((locale) => {
+  const entries = fonts.flatMap((font) => SITEMAP_LOCALES.flatMap((locale) => {
     const translation = font.translations?.[locale] || font.translations?.en;
     const imageUrl = translation?.seo_image_url?.trim();
     if (!imageUrl) return [];
-    const localePrefix = locale === 'en' ? '' : `/${locale}`;
-    const pageUrl = `${site}${localePrefix}/font/${font.slug}/`;
+    const pageUrl = localeUrl(locale, `/font/${font.slug}/`);
+    const lastmod = formatLastmod(font.last_updated);
     return [
       `  <url>\n` +
       `    <loc>${escapeXml(pageUrl)}</loc>\n` +
+      (lastmod ? `    <lastmod>${escapeXml(lastmod)}</lastmod>\n` : '') +
       `    <image:image><image:loc>${escapeXml(imageUrl)}</image:loc></image:image>\n` +
       `  </url>`,
     ];
@@ -36,7 +32,5 @@ export const GET: APIRoute = async () => {
     ...entries,
     '</urlset>',
   ].join('\n');
-  return new Response(xml, {
-    headers: { 'Content-Type': 'application/xml; charset=utf-8' },
-  });
+  return xmlResponse(xml);
 };

@@ -2,12 +2,18 @@
 import Layout from '../../../layouts/Layout.astro';
 import { blogPosts } from '../../../data/blog';
 import { languages, defaultLang } from '../../../i18n/ui';
+import { useTranslations } from '../../../i18n/utils';
+import { generateCanonical } from '../../../lib/seo';
+import { buildBlogArticleSchema } from '../../../lib/blogSchema';
+import { completeBlogLocales, hasCompleteBlogLocale } from '../../../lib/blogLocale.mjs';
 
 // 1. Generate routes for all non-default languages (ES, PT) and all blog slugs
 export async function getStaticPaths() {
   const locales = Object.keys(languages).filter(l => l !== defaultLang);
   return locales.flatMap(lang => 
-    blogPosts.map(post => ({
+    blogPosts
+      .filter(post => hasCompleteBlogLocale(post, lang))
+      .map(post => ({
       params: { lang, slug: post.slug },
       props: { post }
     }))
@@ -18,10 +24,40 @@ const { lang } = Astro.params;
 const { post } = Astro.props;
 const locale = lang as keyof typeof languages;
 
-// 2. Safely extract localized content (Fallback to English if a translation is missing)
-const title = post.title[locale] || post.title['en'];
-const content = post.content[locale] || post.content['en'];
-const excerpt = post.excerpt[locale] || post.excerpt['en'];
+// 2. Routes only exist for complete translations, so no cross-language fallback is needed.
+const title = post.title[locale];
+const content = post.content[locale];
+const excerpt = post.excerpt[locale];
+const t = useTranslations(locale);
+const siteURL = Astro.site || new URL('https://sinpes.com');
+const pageUrl = generateCanonical(siteURL, Astro.url.pathname);
+const homePath = locale === defaultLang ? '/' : `/${locale}/`;
+const blogPath = locale === defaultLang ? '/blog/' : `/${locale}/blog/`;
+const aboutPath = locale === defaultLang ? '/about/' : `/${locale}/about/`;
+const homeUrl = generateCanonical(siteURL, homePath);
+const blogUrl = generateCanonical(siteURL, blogPath);
+const aboutUrl = generateCanonical(siteURL, aboutPath);
+const imageAlt = post.image_alt_text || title;
+const availableLocales = completeBlogLocales(
+  post,
+  Object.keys(languages)
+) as Array<keyof typeof languages>;
+const structuredData = buildBlogArticleSchema({
+  pageUrl,
+  blogUrl,
+  homeUrl,
+  aboutUrl,
+  title,
+  description: excerpt,
+  contentHtml: content,
+  locale,
+  publishedAt: post.date,
+  imageUrl: post.image_url ? new URL(post.image_url, siteURL).href : undefined,
+  imageAlt,
+  targetKeyword: post.target_keyword,
+  blogName: t('nav.blog'),
+  homeName: t('nav.library'),
+});
 
 // 3. Dynamically extract Table of Contents from H2 tags in the HTML content
 const tocRegex = /<h2\s+id="([^"]+)">(.*?)<\/h2>/gi;
@@ -32,7 +68,22 @@ while ((match = tocRegex.exec(content)) !== null) {
 }
 ---
 
-<Layout title={title} description={excerpt} locale={locale}>
+<Layout
+  title={title}
+  description={excerpt}
+  locale={locale}
+  image={post.image_url}
+  imageAlt={imageAlt}
+  imageWidth={1200}
+  imageHeight={630}
+  ogType="article"
+  articlePublishedTime={post.date}
+  articleModifiedTime={post.date}
+  articleSection="Typography"
+  articleAuthorUrl={aboutUrl}
+  availableLocales={availableLocales}
+  structuredData={structuredData}
+>
   <main class="blog-reader view-container">
     <article class="blog-main">
       <header class="blog-header">

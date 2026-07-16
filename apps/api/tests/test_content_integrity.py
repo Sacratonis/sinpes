@@ -21,18 +21,37 @@ class ContentIntegrityTests(unittest.TestCase):
     def setUp(self):
         self.conn = sqlite3.connect(":memory:")
         self.conn.row_factory = sqlite3.Row
-        self.conn.execute(
-            """CREATE TABLE article_queue (
-                id TEXT PRIMARY KEY, title TEXT, slug TEXT, target_keyword TEXT,
-                language TEXT, status TEXT, source_keyword_data TEXT, created_at TEXT
-            )"""
-        )
-        self.conn.execute(
-            "CREATE TABLE font_registry (slug TEXT PRIMARY KEY, status TEXT)"
-        )
-        self.conn.execute(
-            "CREATE TABLE font_translations (slug TEXT, locale TEXT, seo_image_url TEXT)"
-        )
+        self.conn.executescript("""
+            CREATE TABLE article_queue (
+                id TEXT PRIMARY KEY, source_topic TEXT, source_keyword_data TEXT,
+                language TEXT, validity TEXT, validity_reasoning TEXT, title TEXT,
+                slug TEXT, meta_description TEXT, target_keyword TEXT,
+                secondary_keywords TEXT, body_markdown TEXT, body_html TEXT,
+                font_claims TEXT, referenced_font_slugs TEXT, image_prompt TEXT,
+                image_url TEXT, image_alt_text TEXT, word_count INTEGER,
+                content_scope TEXT, status TEXT, rejection_note TEXT,
+                created_at TEXT, published_at TEXT
+            );
+            CREATE TABLE font_registry (
+                slug TEXT PRIMARY KEY, display_name TEXT, category TEXT, use_cases TEXT,
+                status TEXT, weights TEXT, variants TEXT, is_variable BOOLEAN DEFAULT 0
+            );
+            CREATE TABLE font_translations (
+                slug TEXT, locale TEXT, description TEXT, seo_image_url TEXT
+            );
+        """)
+        for slug in ("writer-alpha", "writer-beta"):
+            self.conn.execute(
+                """INSERT INTO font_registry VALUES
+                   (?, ?, 'sans-serif', 'UI Design', 'active', '[400]',
+                    '[{"weight":400,"style":"normal"}]', 0)""",
+                (slug, slug.replace("-", " ").title()),
+            )
+            for locale in ("en", "es", "pt"):
+                self.conn.execute(
+                    "INSERT INTO font_translations VALUES (?, ?, '', ?)",
+                    (slug, locale, f"https://cdn.test/{slug}-{locale}.webp"),
+                )
 
     def tearDown(self):
         self.conn.close()
@@ -41,12 +60,32 @@ class ContentIntegrityTests(unittest.TestCase):
         self, article_id: str, keyword: str, *, title: str = "Existing article",
         status: str = "published", language: str = "en", intent_key: str | None = None,
     ):
+        body = (
+            '<p>Use <a href="/font/writer-alpha/">Writer Alpha</a> and compare it with '
+            '<a href="/font/writer-beta/">Writer Beta</a>.</p>'
+            '<h2 id="one">One</h2><p>Test the final layout.</p>'
+            '<h2 id="two">Two</h2><p>Compare spacing carefully.</p>'
+            '<h2 id="three">Three</h2><p>Review the hierarchy.</p>'
+            + '<p>Specific practical typography guidance for readable interface layouts.</p>' * 60
+        )
         self.conn.execute(
-            "INSERT INTO article_queue VALUES (?,?,?,?,?,?,?,?)",
+            """INSERT INTO article_queue (
+                id,source_topic,source_keyword_data,language,validity,validity_reasoning,
+                title,slug,meta_description,target_keyword,secondary_keywords,
+                body_markdown,body_html,font_claims,referenced_font_slugs,word_count,
+                content_scope,status,created_at
+            ) VALUES (?,?,?,?, 'valid','Validated',?,?,?,?,'[]',?,?,?,?,0,'brief',?,?)""",
             (
-                article_id, title, article_id, keyword, language, status,
+                article_id, title,
                 json.dumps({"intent_key": intent_key}) if intent_key else "{}",
-                "2026-07-15T00:00:00+00:00",
+                language, title, article_id, f"Practical guidance for {title.lower()}.",
+                keyword, body, body,
+                json.dumps([
+                    {"slug": "writer-alpha", "weights": [400], "styles": ["normal"], "is_variable": False},
+                    {"slug": "writer-beta", "weights": [400], "styles": ["normal"], "is_variable": False},
+                ]),
+                json.dumps(["writer-alpha", "writer-beta"]),
+                status, "2026-07-15T00:00:00+00:00",
             ),
         )
         self.conn.commit()
@@ -137,11 +176,11 @@ class ContentIntegrityTests(unittest.TestCase):
 
     def test_image_audit_reports_cross_family_duplicates_and_missing_locales(self):
         self.conn.executemany(
-            "INSERT INTO font_registry VALUES(?, 'active')",
+            "INSERT INTO font_registry(slug,status) VALUES(?, 'active')",
             [("alpha",), ("beta",)],
         )
         self.conn.executemany(
-            "INSERT INTO font_translations VALUES(?,?,?)",
+            "INSERT INTO font_translations(slug,locale,seo_image_url) VALUES(?,?,?)",
             [
                 ("alpha", "en", "https://cdn.test/shared.webp"),
                 ("alpha", "es", "https://cdn.test/alpha-es.webp"),
@@ -154,13 +193,7 @@ class ContentIntegrityTests(unittest.TestCase):
         self.assertEqual(len(report["missing"]), 2)
 
     def test_link_audit_reports_only_non_public_font_targets(self):
-        self.conn.execute("INSERT INTO font_registry VALUES('alpha', 'active')")
-        self.conn.execute(
-            "ALTER TABLE article_queue ADD COLUMN body_html TEXT"
-        )
-        self.conn.execute(
-            "ALTER TABLE article_queue ADD COLUMN body_markdown TEXT"
-        )
+        self.conn.execute("INSERT INTO font_registry(slug,status) VALUES('alpha', 'active')")
         self.conn.execute(
             "INSERT INTO article_queue(id,title,slug,target_keyword,language,status,source_keyword_data,created_at,body_html) "
             "VALUES('links','Links','links','links','en','published','{}','2026-07-15',?)",
