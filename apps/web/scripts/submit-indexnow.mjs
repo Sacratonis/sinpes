@@ -1,10 +1,13 @@
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-
 const site = 'https://sinpes.com';
 const key = '9a016cc587051b4a818487a5046cf90e';
-const sitemapPath = path.resolve('dist/sitemap-0.xml');
-const sitemap = await readFile(sitemapPath, 'utf8');
+const sitemapUrl = process.env.INDEXNOW_SITEMAP_URL || `${site}/sitemap-0.xml`;
+const sitemapResponse = await fetch(sitemapUrl, {
+  headers: { 'user-agent': 'SINPES-IndexNow/1.0' },
+});
+if (!sitemapResponse.ok) {
+  throw new Error(`Could not fetch live sitemap (${sitemapResponse.status}).`);
+}
+const sitemap = await sitemapResponse.text();
 const urls = [...new Set(
   [...sitemap.matchAll(/<loc>(.*?)<\/loc>/g)]
     .map((match) => match[1].trim())
