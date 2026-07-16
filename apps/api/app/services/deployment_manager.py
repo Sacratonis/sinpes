@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from app.core.config import config
 from app.repositories.meta_repo import MetaRepository
+from app.services.indexnow import queue_indexnow_urls, submit_pending_indexnow
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,7 @@ def trigger_deployment(
     *,
     artifact_hash: str,
     source: str,
+    indexnow_urls: list[str] | None = None,
     force: bool = False,
     automatic: bool = False,
     now: datetime | None = None,
@@ -121,6 +123,8 @@ def trigger_deployment(
     meta.set_value("last_build_error", "")
     meta.set_value("last_deployment_source", source)
     meta.set_value("pending_snapshot_hash", artifact_hash)
+    if indexnow_urls:
+        queue_indexnow_urls(conn, indexnow_urls)
     conn.commit()
 
     try:
@@ -158,4 +162,5 @@ def confirm_deployment_success(conn) -> dict:
     meta.set_value("build_in_progress", "false")
     meta.set_value("last_build_error", "")
     conn.commit()
-    return {"status": "ok", "snapshot_hash": pending_hash}
+    indexnow = submit_pending_indexnow(conn)
+    return {"status": "ok", "snapshot_hash": pending_hash, "indexnow": indexnow}

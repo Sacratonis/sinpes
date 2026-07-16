@@ -7,6 +7,7 @@ from app.ingestion.storage_archive import upload_to_r2
 from app.routers.snapshot import export_blog_snapshot, export_snapshot
 from app.services.content_integrity import ContentIntegrityError
 from app.services.deployment_manager import snapshot_hash, trigger_deployment
+from app.services.indexnow import localized_urls
 from app.services.writer_pipeline import publication_integrity_report
 
 
@@ -50,6 +51,11 @@ def publish_next_approved_article() -> dict:
                 conn,
                 artifact_hash=snapshot_hash(font_snapshot, snapshot),
                 source="scheduled_article",
+                indexnow_urls=(
+                    localized_urls("/")
+                    + localized_urls("/blog/")
+                    + localized_urls(f"/blog/{row['slug']}/")
+                ),
                 automatic=True,
             )
         return {

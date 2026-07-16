@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     # --- SECURITY & INFRA ---
     BUILD_SECRET: str = Field(validation_alias="BUILD_SECRET")
     SITE_URL: str = Field(default="https://sinpes.com", validation_alias="SITE_URL")
+    INDEXNOW_ENABLED: bool = Field(default=True, validation_alias="INDEXNOW_ENABLED")
+    INDEXNOW_KEY: str = Field(
+        default="9a016cc587051b4a818487a5046cf90e",
+        validation_alias="INDEXNOW_KEY",
+    )
     DATABASE_PATH: str = Field(default="/opt/sinpes/data/sinpes.db", validation_alias="DATABASE_PATH")
     APP_ENV: str = Field(default="production")  # Default to production for safety
 

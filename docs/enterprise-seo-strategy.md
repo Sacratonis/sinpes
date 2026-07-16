@@ -58,11 +58,20 @@ Planned commands:
 
 - [ ] Connect Google Search Console data.
 - [x] Connect Bing Webmaster data.
+- [x] Submit the canonical sitemap index in Google Search Console.
+- [x] Submit the page sitemap in Google Search Console.
+- [x] Submit the image sitemap in Google Search Console.
+- [x] Add Bing Webmaster verification to every public layout.
+- [x] Implement IndexNow URL queueing and post-deployment submission locally.
+- [ ] Deploy IndexNow and verify the public key URL.
+- [ ] Run the one-time full-site IndexNow submission after deployment.
 - [ ] Record page and image impressions, clicks, CTR, and average position.
 - [x] Add images to the XML sitemap.
 - [x] Add `primaryImageOfPage` and `ImageObject` where appropriate.
+- [x] Add a reusable homepage `Schema.js` graph for EN, ES, and PT.
 - [x] Verify R2/CDN image crawlability, robots rules, headers, and canonical URLs.
 - [x] Extend the build-time SEO audit to image SEO.
+- [x] Extend the build-time SEO audit to Bing verification, homepage schema, and IndexNow.
 - [x] Send one weekly Telegram report and urgent alerts only.
 
 Automation: deterministic scheduled audit, stored historical snapshots, change detection, and one concise summary request only when useful.
@@ -136,6 +145,272 @@ Automation: scheduled data snapshots and report preparation; all claims and outr
 - [ ] Track recommendations through proposed, approved, completed, and measured states.
 
 Automation: daily lightweight checks, weekly reporting, monthly opportunity review, and urgent alerts only for material failures.
+
+## Bulletproof execution checklist
+
+This is the single working checklist. Items remain incomplete until they are
+verified on the live site or in the relevant search engine, not merely written
+in local code.
+
+### A — Deployment and live verification
+
+- [ ] Review the complete SEO diff before deployment.
+- [ ] Back up the production database and current server files.
+- [ ] Deploy the homepage schema and Bing IndexNow changes once.
+- [ ] Confirm the API, Font/Oracle, Writer, Telethon, and SEO services restart.
+- [ ] Confirm the homepage returns HTTP 200 in EN, ES, and PT.
+- [ ] Validate homepage JSON-LD with Schema.org and Google Rich Results tools.
+- [ ] Verify `Organization`, `WebSite`, `CollectionPage`, and `ItemList` entities.
+- [ ] Confirm every homepage font URL in the schema is canonical and public.
+- [ ] Confirm the IndexNow key is publicly reachable at its exact root URL.
+- [ ] Run `npm run seo:indexnow` once against the live sitemap.
+- [ ] Confirm Bing accepts the full-site submission.
+- [ ] Confirm later font and article deployments submit only queued changed URLs.
+- [ ] Verify failed IndexNow submissions remain queued for retry.
+- [ ] Record the deployment hash and rollback instructions.
+
+### B — Google Search Console
+
+- [x] Verify the `https://sinpes.com/` property.
+- [x] Submit `sitemap-index.xml`.
+- [x] Submit `sitemap-0.xml`.
+- [x] Submit `image-sitemap.xml`.
+- [x] Confirm 378 page URLs were discovered.
+- [x] Confirm 342 image records were discovered.
+- [ ] Wait for the Page Indexing report to finish processing.
+- [ ] Audit every non-indexing reason before clicking **Validate fix**.
+- [ ] Inspect the homepage URL.
+- [ ] Inspect one representative font-family URL.
+- [ ] Inspect one category URL.
+- [ ] Inspect one Spanish font URL.
+- [ ] Inspect one Portuguese font URL.
+- [ ] Inspect one article after articles are published.
+- [ ] Review canonical selection for all samples.
+- [ ] Review crawl status and rendered HTML for all samples.
+- [ ] Review Core Web Vitals.
+- [ ] Review HTTPS status.
+- [ ] Review manual actions and security issues.
+- [ ] Review enhancement and structured-data reports.
+- [ ] Record a 7-day baseline for clicks, impressions, CTR, and position.
+- [ ] Record a 28-day baseline once sufficient data exists.
+
+### C — Bing Webmaster and IndexNow
+
+- [x] Add Bing Webmaster verification.
+- [x] Connect the Bing query-statistics API to the Oracle.
+- [x] Implement IndexNow key hosting.
+- [x] Queue EN, ES, and PT URLs together.
+- [x] Queue new font-family and category URLs.
+- [x] Queue updated font-poster URLs.
+- [x] Queue unpublished and erased font URLs.
+- [x] Queue new article, blog-index, and homepage URLs.
+- [x] Submit only after deployment confirmation.
+- [x] Add deterministic IndexNow unit and deployment integration tests.
+- [ ] Deploy and validate IndexNow against the live site.
+- [ ] Add IndexNow status to `/seo_status`.
+- [ ] Add last submission, pending URL count, and last error to `/seo_report`.
+- [ ] Alert only after repeated submission failures.
+- [ ] Compare Bing impressions and clicks before and after IndexNow.
+
+### D — Competitor intelligence
+
+- [x] Establish the baseline for dafontfree.io, dafont.com, and 1001fonts.com.
+- [x] Record their visible taxonomy, page structure, description lengths, and filters.
+- [x] Store reusable patterns in `docs/competitor-seo-patterns.md`.
+- [ ] Add `/seo_competitors` to the read-only SEO bot.
+- [ ] Store weekly competitor snapshots instead of replacing old results.
+- [ ] Track estimated public inventory counts.
+- [ ] Track newly exposed category and collection URLs.
+- [ ] Track title, meta-description, and heading patterns.
+- [ ] Track archive-card excerpt lengths.
+- [ ] Track sampled font-description word counts.
+- [ ] Track new filters, specimen tools, and internal-link modules.
+- [ ] Track sitemap changes without copying their content.
+- [ ] Produce a weekly “new pattern / unchanged / removed” report.
+- [ ] Require human approval before adopting a competitor pattern.
+- [ ] Measure adopted patterns against SINPES impressions, rankings, and clicks.
+
+### E — Font-page content system
+
+- [ ] Generate a dedicated 25–35 word archive-card excerpt.
+- [ ] Keep the full verified font description at 160–220 words when data supports it.
+- [ ] Identify the family and category in the opening.
+- [ ] State real file, style, and weight counts.
+- [ ] Describe practical use cases without unsupported anatomy claims.
+- [ ] Include verified formats, variable capability, and character coverage.
+- [ ] Add category and collection links.
+- [ ] Add relevant editorial links.
+- [ ] Add related-font recommendations using verified metadata.
+- [ ] Add author or foundry only when verified source data exists.
+- [ ] Add first-published and last-updated dates.
+- [ ] Keep titles, descriptions, and excerpts unique across locales.
+- [ ] Reject copied, spun, or near-duplicate competitor language.
+
+### F — Archive growth
+
+- [x] Automate font-only ingestion and metadata generation.
+- [x] Group multi-file font families.
+- [x] Publish localized EN, ES, and PT font pages.
+- [ ] Reach 150 verified live font families.
+- [ ] Reach 250 verified live font families.
+- [ ] Reach 500 verified live font families.
+- [ ] Keep queue, database, R2, sitemap, and live-page counts consistent.
+- [ ] Detect family splits before publication.
+- [ ] Detect duplicate files and duplicate poster images.
+- [ ] Monitor failed, deferred, and blocked ingestion items.
+- [ ] Verify every batch on the live website after deployment.
+
+### G — Taxonomy and collection pages
+
+- [ ] Finalize controlled dimensions for classification, size, weight, width,
+  occasion, holiday, era, style, attitude, use case, and capability.
+- [ ] Create a stable `intent_key` for every eligible landing page.
+- [ ] Require at least four accurately matching fonts.
+- [ ] Require real Google, Bing, Pinterest, or first-party evidence.
+- [ ] Block exact intent cannibalization.
+- [ ] Keep fuzzy similarity advisory-only.
+- [ ] Add unique introductions and selection guidance.
+- [ ] Add real specimens and useful filters.
+- [ ] Add related collections and breadcrumbs.
+- [ ] Add EN, ES, and PT versions only when genuinely translated.
+- [ ] Keep empty and weak combinations non-indexable.
+
+Initial style candidates:
+
+- [ ] Sans serif
+- [ ] Serif
+- [ ] Slab serif
+- [ ] Script
+- [ ] Handwritten
+- [ ] Display
+- [ ] Decorative
+- [ ] Brush
+- [ ] Calligraphy
+- [ ] Signature
+- [ ] Monospaced
+- [ ] Pixel
+- [ ] Blackletter
+- [ ] Gothic
+- [ ] Retro
+- [ ] Vintage
+- [ ] Typewriter
+- [ ] Graffiti
+- [ ] Stencil
+- [ ] Geometric
+- [ ] Variable
+
+Initial use-case candidates:
+
+- [ ] UI design
+- [ ] Web design
+- [ ] Mobile applications
+- [ ] Editorial design
+- [ ] Branding
+- [ ] Logos
+- [ ] Posters
+- [ ] Packaging
+- [ ] Social media
+- [ ] Wedding invitations
+- [ ] Fashion branding
+- [ ] Restaurants
+- [ ] Magazines
+- [ ] Portfolios
+- [ ] Presentations
+
+### H — Seasonal and trend pages
+
+- [ ] Christmas fonts
+- [ ] Halloween fonts
+- [ ] Valentine fonts
+- [ ] Wedding fonts
+- [ ] Summer fonts
+- [ ] Back-to-school fonts
+- [ ] Black Friday fonts
+- [ ] New Year fonts
+- [ ] Activate seasonal promotion 8–12 weeks before demand peaks.
+- [ ] Keep stable URLs and refresh content rather than creating yearly duplicates.
+- [ ] Update `lastmod` only after a material change.
+- [ ] Remove seasonal prominence after the event without deleting the useful page.
+
+### I — Comparison and alternatives
+
+- [ ] Free alternatives to Gotham.
+- [ ] Free alternatives to Helvetica.
+- [ ] Free alternatives to Proxima Nova.
+- [ ] Free alternatives to Avenir.
+- [ ] Free alternatives to Futura.
+- [ ] Free alternatives to popular editorial fonts.
+- [ ] Free alternatives to popular UI fonts.
+- [ ] Define measurable comparison criteria.
+- [ ] Use only fonts that SINPES actually hosts.
+- [ ] Add clear trademark and independence disclosures.
+- [ ] Never distribute counterfeit or unauthorized commercial assets.
+
+### J — Article and internal-link system
+
+- [ ] Publish two or three approved articles weekly.
+- [ ] Require Oracle evidence or a documented first-party need.
+- [ ] Add font, collection, and related-article links naturally.
+- [ ] Link font pages back to relevant articles.
+- [ ] Link collection pages to included fonts and related collections.
+- [ ] Detect orphan pages daily.
+- [ ] Detect broken internal links before deployment.
+- [ ] Avoid repetitive exact-match anchor text.
+- [ ] Refresh declining articles using real query data.
+- [ ] Consolidate genuine cannibalization rather than creating another page.
+
+### K — Image SEO
+
+- [x] Generate a separate image sitemap.
+- [x] Add `primaryImageOfPage` and `ImageObject`.
+- [x] Use descriptive localized alt text.
+- [x] Remove generated font names from hero images.
+- [x] Reject numbers, faces, watermarks, and unwanted generated text.
+- [x] Detect cross-family duplicate hero URLs.
+- [ ] Verify the R2 image host as a Search Console property.
+- [ ] Confirm hero images use normal crawlable `<img>` elements.
+- [ ] Add responsive `srcset` and `sizes` where useful.
+- [ ] Audit descriptive filenames.
+- [ ] Monitor Google image indexing and image impressions.
+- [ ] Regenerate visually weak or duplicated posters.
+
+### L — Reporting and success criteria
+
+Daily:
+
+- [ ] Indexability and HTTP-status checks.
+- [ ] Broken-link and schema validation.
+- [ ] Sitemap consistency.
+- [ ] Missing metadata and duplicate-image detection.
+
+Weekly:
+
+- [ ] Google and Bing query review.
+- [ ] Queries ranking in positions 4–20.
+- [ ] Low-CTR pages with meaningful impressions.
+- [ ] New collection eligibility.
+- [ ] Competitor-pattern changes.
+- [ ] Orphan-page and content-decay report.
+
+Monthly:
+
+- [ ] Indexed-page and indexed-image growth.
+- [ ] EN, ES, and PT performance.
+- [ ] Font, collection, and article performance.
+- [ ] Internal-link coverage.
+- [ ] Core Web Vitals.
+- [ ] Earned-link and brand-mention growth.
+- [ ] Accepted, rejected, and measured SEO recommendations.
+
+Primary success metrics:
+
+- [ ] More valid indexed font pages.
+- [ ] More non-branded impressions.
+- [ ] More queries in the top 20 and top 10.
+- [ ] Higher CTR on pages with stable rankings.
+- [ ] More image impressions and clicks.
+- [ ] More font downloads from organic sessions.
+- [ ] No manual actions, doorway-page growth, or scaled-content quality failures.
 
 ## Safety and quality gates
 

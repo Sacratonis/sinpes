@@ -8,6 +8,7 @@ import { loadFontRegistry } from "../content/fonts/loader";
 import { defaultLang } from "../i18n/ui";
 import { useTranslations } from "../i18n/utils";
 import { uniqueCategoryLabels } from "../utils/taxonomy";
+import { buildHomePageSchema } from "../lib/Schema.js";
 
 const fonts = await loadFontRegistry();
 const t = useTranslations(defaultLang);
@@ -15,31 +16,15 @@ const t = useTranslations(defaultLang);
 // 🌟 DYNAMIC CATEGORIES: Extracts only the categories that actually exist in the DB
 const uniqueCategories = uniqueCategoryLabels(fonts.map((f) => f.category));
 const pageUrl = new URL('/', Astro.site || 'https://sinpes.com').href;
-const structuredData = {
-  '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'WebSite',
-      '@id': `${pageUrl}#website`,
-      name: 'SINPES',
-      url: pageUrl,
-      inLanguage: defaultLang,
-      potentialAction: {
-        '@type': 'SearchAction',
-        target: `${pageUrl}?q={search_term_string}`,
-        'query-input': 'required name=search_term_string',
-      },
-    },
-    {
-      '@type': 'CollectionPage',
-      name: t('home.title'),
-      description: t('home.description'),
-      url: pageUrl,
-      inLanguage: defaultLang,
-      mainEntity: { '@type': 'ItemList', numberOfItems: fonts.length },
-    },
-  ],
-};
+const structuredData = buildHomePageSchema({
+  siteUrl: Astro.site?.href || 'https://sinpes.com/',
+  pageUrl,
+  locale: defaultLang,
+  title: t('home.title'),
+  description: t('home.description'),
+  fonts,
+  categories: uniqueCategories,
+});
 ---
 
 <Layout

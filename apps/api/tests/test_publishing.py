@@ -124,6 +124,20 @@ class PublishingTests(unittest.TestCase):
             decision.artifact_hash,
         )
 
+    def test_successful_deployment_submits_queued_indexnow_urls(self):
+        changed_url = "https://sinpes.com/font/inter/"
+        decision = self.trigger(indexnow_urls=[changed_url])
+        self.assertTrue(decision.triggered)
+
+        with patch(
+            "app.services.deployment_manager.submit_pending_indexnow",
+            return_value={"status": "submitted", "count": 1},
+        ) as submit:
+            confirmation = confirm_deployment_success(self.connection)
+
+        self.assertEqual(confirmation["indexnow"]["status"], "submitted")
+        submit.assert_called_once_with(self.connection)
+
     def test_confirmation_without_pending_deployment_is_ignored(self):
         self.assertEqual(confirm_deployment_success(self.connection)["status"], "ignored")
 
