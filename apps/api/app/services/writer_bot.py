@@ -8,7 +8,14 @@ from telethon import Button, TelegramClient, events
 from app.core.config import config
 from app.db.database import get_db
 from app.services.article_image_service import finalize_article_image
-from app.services.writer_pipeline import InsufficientDepth, WriterValidationFailure, generate_article, queue_manual_article
+from app.services.content_integrity import ContentIntegrityError
+from app.services.writer_pipeline import (
+    InsufficientDepth,
+    WriterValidationFailure,
+    generate_article,
+    publication_integrity_report,
+    queue_manual_article,
+)
 
 logger = logging.getLogger("sinpes.writer_bot")
 
@@ -92,6 +99,11 @@ def start_bot():
                 document,
                 caption="Complete failed Writer response for human review",
             )
+        except ContentIntegrityError as exc:
+            await event.reply(
+                f"⚠️ Draft blocked by content integrity: {exc}\n"
+                "Use a distinct target keyword or intent. Fuzzy similarity alone never blocks a draft."
+            )
         except Exception as exc:
             logger.exception("Writer draft failed")
             await event.reply(f"❌ Draft failed: {exc}")
@@ -161,6 +173,7 @@ def start_bot():
             "image_url": row["image_url"], "image_alt_text": row["image_alt_text"],
             "word_count": row["word_count"], "validity_reasoning": row["validity_reasoning"],
             "content_scope": row["content_scope"],
+            "content_integrity": source_data.get("content_integrity", {}),
             "body_html": row["body_html"] or row["body_markdown"] or "",
         }
         serialized = json.dumps(metadata, ensure_ascii=False, indent=2)
@@ -177,6 +190,8 @@ def start_bot():
 
     def set_status(article_id: str, status: str, note=None) -> bool:
         with get_db() as conn:
+            if status == "approved":
+                publication_integrity_report(conn, article_id)
             cursor = conn.execute(
                 "UPDATE article_queue SET status=?, rejection_note=? WHERE id=? AND status IN ('pending_review','edited','rejected')",
                 (status, note, article_id),
@@ -187,15 +202,21 @@ def start_bot():
     @client.on(events.NewMessage(pattern=r"^/approve\s+([a-f0-9-]+)$"))
     async def approve_command(event):
         if not await authorized(event): return
-        ok = set_status(event.pattern_match.group(1), "approved")
-        await event.reply("✅ Approved for the next editorial publishing slot." if ok else "Article cannot be approved.")
+        try:
+            ok = set_status(event.pattern_match.group(1), "approved")
+            await event.reply("✅ Approved for the next editorial publishing slot." if ok else "Article cannot be approved.")
+        except ContentIntegrityError as exc:
+            await event.reply(f"⚠️ Approval blocked: {exc}\nResolve the exact keyword or intent conflict first.")
 
     @client.on(events.CallbackQuery(pattern=rb"^approve:(.+)$"))
     async def approve_callback(event):
         if not await authorized(event): return
         article_id = event.pattern_match.group(1).decode()
-        ok = set_status(article_id, "approved")
-        await event.edit("✅ Approved for the next editorial publishing slot." if ok else "Article cannot be approved.")
+        try:
+            ok = set_status(article_id, "approved")
+            await event.edit("✅ Approved for the next editorial publishing slot." if ok else "Article cannot be approved.")
+        except ContentIntegrityError as exc:
+            await event.edit(f"⚠️ Approval blocked: {exc}\nResolve the exact keyword or intent conflict first.")
 
     @client.on(events.NewMessage(pattern=r"^/reject\s+([a-f0-9-]+)\s+(.+)$"))
     async def reject_command(event):

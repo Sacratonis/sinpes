@@ -52,12 +52,45 @@ for (const file of files) {
       failures.push(`${relative}: missing JSON-LD`);
     } else {
       try {
-        JSON.parse(jsonLd);
+        const data = JSON.parse(jsonLd);
+        if (isFont) {
+          const graph = Array.isArray(data?.['@graph']) ? data['@graph'] : [];
+          const webPage = graph.find(item => item?.['@type'] === 'WebPage');
+          const imageObject = graph.find(item => item?.['@type'] === 'ImageObject');
+          const hasHero = /<img\b[^>]*class="[^"]*"[^>]*>/s.test(html) || html.includes('class="hero-cinema"');
+          if (!webPage) failures.push(`${relative}: font page missing WebPage schema`);
+          if (hasHero && !imageObject) failures.push(`${relative}: font page missing ImageObject schema`);
+          if (hasHero && !webPage?.primaryImageOfPage) failures.push(`${relative}: font page missing primaryImageOfPage`);
+        }
       } catch {
         failures.push(`${relative}: invalid JSON-LD`);
       }
     }
   }
+}
+
+const imageSitemapPath = path.join(distDir, 'image-sitemap.xml');
+try {
+  const imageSitemap = await readFile(imageSitemapPath, 'utf8');
+  const imageLocations = [...imageSitemap.matchAll(/<image:loc>(.*?)<\/image:loc>/g)].map(match => match[1]);
+  if (!imageSitemap.includes('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"')) {
+    failures.push('image-sitemap.xml: missing Google image namespace');
+  }
+  if (!imageLocations.length) failures.push('image-sitemap.xml: contains no images');
+  if (imageLocations.some(url => !url.startsWith('https://'))) {
+    failures.push('image-sitemap.xml: image URLs must use HTTPS');
+  }
+} catch {
+  failures.push('image-sitemap.xml: missing generated image sitemap');
+}
+
+try {
+  const robots = await readFile(path.join(distDir, 'robots.txt'), 'utf8');
+  if (!robots.includes('Sitemap: https://sinpes.com/image-sitemap.xml')) {
+    failures.push('robots.txt: missing image sitemap declaration');
+  }
+} catch {
+  failures.push('robots.txt: missing');
 }
 
 if (failures.length) {

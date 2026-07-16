@@ -7,6 +7,7 @@ def create_tables(conn: sqlite3.Connection):
             slug TEXT PRIMARY KEY,
             display_name TEXT NOT NULL,
             is_demo BOOLEAN NOT NULL DEFAULT 0,
+            is_variable BOOLEAN NOT NULL DEFAULT 0,
             category TEXT NOT NULL,
             variants TEXT NOT NULL, -- JSON array
             weights TEXT,           -- JSON array or null

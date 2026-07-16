@@ -6,6 +6,7 @@ class FontRegistry(BaseModel):
     slug: str
     display_name: str
     is_demo: bool
+    is_variable: bool = False
     category: str
     variants: str
     weights: Optional[str] = None

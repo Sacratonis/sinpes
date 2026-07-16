@@ -15,3 +15,10 @@ class QueueItem(BaseModel):
 class QueueStatus(BaseModel):
     pending_items: int
     dead_letter_items: int
+
+
+class PipelineOverview(BaseModel):
+    live_fonts: int
+    ready_to_publish: int
+    pending_ingestion: int
+    failed_ingestion: int

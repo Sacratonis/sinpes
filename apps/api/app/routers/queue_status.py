@@ -18,9 +18,9 @@ def queue_status():
         q_repo = QueueRepository(conn)
         m_repo = MetaRepository(conn)
         
-        stats = q_repo.get_stats()
-        pending = stats.pending_items
-        failed = stats.dead_letter_items
+        overview = q_repo.get_pipeline_overview()
+        pending = overview.pending_ingestion
+        failed = overview.failed_ingestion
         
         # 1. Last Scheduler Tick
         last_run_val = m_repo.get_value('last_queue_release_at')
@@ -48,6 +48,8 @@ def queue_status():
             "queue_health": "healthy" if pending < 100 else "backlogged",
             "pending_items": pending,
             "dead_letter_items": failed,
+            "live_fonts": overview.live_fonts,
+            "ready_to_publish": overview.ready_to_publish,
             "oldest_pending_age_minutes": oldest_age_minutes,
             "last_scheduler_tick": last_run
         }

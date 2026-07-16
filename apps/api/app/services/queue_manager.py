@@ -16,7 +16,7 @@ from app.services.drip_feed_scheduler import run_daily_batch
 from app.services.db_backup import backup_database
 
 # --- ORCHESTRATOR IMPORTS ---
-from app.ingestion.media_processor import process_hero_image
+from app.ingestion.media_processor import HeroImageGenerationError, process_hero_image
 from app.ingestion.font_converter import generate_woff2, resolve_display_name
 from app.ingestion.storage_archive import upload_to_r2
 from app.ingestion.bouncer import check_editorial_quality
@@ -25,6 +25,15 @@ from app.services.telegram_notify import send_telegram_alert
 from app.schemas.ingestion import FontIngestionPayload
 
 logger = logging.getLogger(__name__)
+
+
+class DuplicateFontUpload(RuntimeError):
+    """An already-saved family should be skipped, not sent to the dead-letter queue."""
+
+
+def detect_variable_font(font_obj: TTFont) -> bool:
+    """Use the OpenType variation table as the only variable-font truth source."""
+    return "fvar" in font_obj
 
 
 def build_font_object_key(slug: str, path: str, weight: int, style: str) -> str:
@@ -109,6 +118,24 @@ def process_font_upload(next_item: dict):
     description = payload.description
     locale = payload.locale
 
+    with open(primary_font_path, 'rb') as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+
+    # Idempotency gate: repeated Telegram uploads must not consume category,
+    # image, or R2 work and must not become misleading failed queue items.
+    with get_db() as duplicate_conn:
+        from app.repositories.font_repo import FontRepository
+        duplicate_repo = FontRepository(duplicate_conn)
+        existing_slug = duplicate_repo.find_slug_by_hash(file_hash)
+        if existing_slug:
+            raise DuplicateFontUpload(
+                f"Duplicate upload skipped: this font file is already saved as '{existing_slug}'."
+            )
+        if duplicate_repo.slug_exists(slug):
+            raise DuplicateFontUpload(
+                f"Duplicate family skipped: the slug '{slug}' already exists."
+            )
+
     # --- GATE 1: Editorial quality check (Bouncer) ---
     # Runs before any expensive operation. Raises on failure to trigger dead-letter.
     with get_db() as _conn_gate:
@@ -120,12 +147,10 @@ def process_font_upload(next_item: dict):
     with get_db() as _conn_cat:
         category = resolve_category(_conn_cat, raw_category, flagged_as_new_category, send_telegram_alert)
 
-    with open(primary_font_path, 'rb') as f:
-        file_hash = hashlib.sha256(f.read()).hexdigest()
-
     seo_image_url = None
     variants_list = []
     is_demo = False  # Default; overridden by resolve_display_name if font loads cleanly
+    is_variable = False
 
     def r2_upload_callback(**kwargs):
         try:
@@ -141,6 +166,7 @@ def process_font_upload(next_item: dict):
         try:
             primary_font_obj = TTFont(primary_font_path)
             display_name, is_demo = resolve_display_name(primary_font_obj, slug)
+            is_variable = detect_variable_font(primary_font_obj)
         except Exception as e:
             logger.warning(f"ORCHESTRATOR: Could not extract display name from primary font: {e}")
 
@@ -163,12 +189,19 @@ def process_font_upload(next_item: dict):
             existing_image_urls=existing_image_urls,
         ) 
         logger.info(f"ORCHESTRATOR: Hero image processed! URL: {seo_image_url}")
+    except HeroImageGenerationError:
+        raise
     except Exception as e:
         logger.error(f"ORCHESTRATOR: Error processing image: {e}")
         traceback.print_exc()
+        raise HeroImageGenerationError(
+            f"Hero image processing failed for '{slug}': {e}"
+        ) from e
 
     if not seo_image_url:
-        raise RuntimeError(f"ORCHESTRATOR: Hero image generation failed for '{slug}' — both CF Worker and Pollinations returned nothing. Font not saved.")
+        raise HeroImageGenerationError(
+            f"Hero image generation returned no image for '{slug}'. Font not saved."
+        )
 
     # 3. Loop through ALL font weights
     for path in font_paths:
@@ -181,6 +214,9 @@ def process_font_upload(next_item: dict):
                 font_obj = primary_font_obj
             else:
                 font_obj = TTFont(path)
+
+            variant_is_variable = detect_variable_font(font_obj)
+            is_variable = is_variable or variant_is_variable
                 
             woff2_bytes = generate_woff2(font_obj)
             
@@ -204,7 +240,8 @@ def process_font_upload(next_item: dict):
                 "weight": weight_class,
                 "style": style,
                 "url": font_url,
-                "filename": os.path.basename(path)
+                "filename": os.path.basename(path),
+                "is_variable": variant_is_variable,
             })
             
             # Close font object if we loaded a secondary weight
@@ -260,7 +297,7 @@ def process_font_upload(next_item: dict):
                 weights_str = json.dumps(list(set([v['weight'] for v in variants_list]))) 
 
                 f_repo.insert_font(FontRegistry(
-                    slug=slug, display_name=display_name, is_demo=is_demo, category=category,
+                    slug=slug, display_name=display_name, is_demo=is_demo, is_variable=is_variable, category=category,
                     variants=variants_str, weights=weights_str, woff2_url=select_primary_variant_url(variants_list),
                     file_format='zip', file_size_kb=zip_size_kb or 0, use_cases=use_cases_str,
                     status='queued', file_hash=file_hash, last_updated=now_iso,
@@ -305,6 +342,33 @@ def release_next_from_queue():
             conn.commit()
         logger.info(f"Successfully processed queue item {item_id}")
         return True
+    except DuplicateFontUpload as e:
+        logger.info("Queue item %s skipped safely: %s", item_id, e)
+        with get_db() as conn:
+            from app.repositories.queue_repo import QueueRepository
+            QueueRepository(conn).mark_processed(item_id)
+            conn.commit()
+        send_telegram_alert(f"ℹ️ Queue item #{item_id}: {e}")
+        return True
+    except HeroImageGenerationError as e:
+        error_msg = str(e)
+        delay_seconds = min(1800 * (2 ** min(attempts - 1, 3)), 21600)
+        logger.warning(
+            "Hero image unavailable for queue item %s; deferring for %s seconds: %s",
+            item_id,
+            delay_seconds,
+            error_msg,
+        )
+        with get_db() as conn:
+            from app.repositories.queue_repo import QueueRepository
+            QueueRepository(conn).defer_item(item_id, error_msg, delay_seconds)
+            conn.commit()
+        if attempts == 1:
+            send_telegram_alert(
+                f"⏳ Queue item #{item_id}: hero services are unavailable. "
+                f"Automatic retry scheduled in {delay_seconds // 60} minutes."
+            )
+        return False
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Failed to process item {item_id} (Attempt {attempts}): {error_msg}")

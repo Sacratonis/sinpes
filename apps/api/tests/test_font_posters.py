@@ -19,6 +19,10 @@ class FontPosterTests(unittest.TestCase):
         self.assertIn("photograph", prompt.lower())
         self.assertIn("Wedding Invitations", prompt)
         self.assertIn("no typography", prompt.lower())
+        self.assertIn("no numbers", prompt.lower())
+        self.assertIn("no digits", prompt.lower())
+        self.assertIn("no visible human faces", prompt.lower())
+        self.assertIn("faces", prompt.lower())
 
     def test_scene_direction_varies_by_font(self):
         prompts = {

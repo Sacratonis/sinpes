@@ -4,6 +4,7 @@ export interface FontEntry {
   slug: string;
   display_name: string;
   is_demo: boolean;
+  is_variable: boolean;
   category: string;
   use_cases: string;
   variants: FontVariant[];
@@ -39,6 +40,7 @@ export async function loadFontRegistry(): Promise<FontEntry[]> {
         slug: 'mock-sans',
         display_name: 'Mock Sans',
         is_demo: false,
+        is_variable: false,
         category: 'Sans-Serif',
         use_cases: 'UI, Web',
         variants: ['Regular', 'Bold'],

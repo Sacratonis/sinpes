@@ -6,6 +6,7 @@ import { defaultLang } from '../../i18n/ui';
 import { useTranslations } from '../../i18n/utils';
 import { buildFontFaceCSS, sanitizeFontFamily } from '../../utils/font';
 import { buildMetaDescription } from '../../lib/seo';
+import { buildFontPageSchema } from '../../lib/schema';
 import { categorySlug } from '../../utils/taxonomy';
 
 export async function getStaticPaths() {
@@ -49,37 +50,22 @@ const seoDescription = buildMetaDescription(
     .replace('{category}', fontCategory.toLowerCase())
     .replace('{description}', descriptionText)
 );
-const structuredData = {
-  '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'CreativeWork',
-      '@id': `${pageUrl}#font`,
-      name: font.display_name,
-      description: seoDescription,
-      url: pageUrl,
-      image: heroImageBase || undefined,
-      inLanguage: defaultLang,
-      genre: fontCategory,
-      keywords: [translation.primary_keyword, ...heroUseCases].filter(Boolean).join(', '),
-      isAccessibleForFree: true,
-      dateModified: font.last_updated || undefined,
-      encoding: font.download_zip_url ? {
-        '@type': 'MediaObject',
-        contentUrl: font.download_zip_url,
-        encodingFormat: 'application/zip',
-      } : undefined,
-    },
-    {
-      '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: t('nav.library'), item: new URL('/', Astro.site || 'https://sinpes.com').href },
-        { '@type': 'ListItem', position: 2, name: fontCategory, item: categoryUrl },
-        { '@type': 'ListItem', position: 3, name: font.display_name, item: pageUrl },
-      ],
-    },
-  ],
-};
+const structuredData = buildFontPageSchema({
+  pageUrl,
+  fontName: font.display_name,
+  description: seoDescription,
+  locale: defaultLang,
+  category: fontCategory,
+  keyword: translation.primary_keyword,
+  useCases: heroUseCases,
+  imageUrl: heroImageBase || undefined,
+  imageAlt: heroAlt,
+  lastUpdated: font.last_updated,
+  downloadUrl: font.download_zip_url,
+  libraryName: t('nav.library'),
+  libraryUrl: new URL('/', Astro.site || 'https://sinpes.com').href,
+  categoryUrl,
+});
 ---
 
 <Layout title={seoTitle} description={seoDescription} locale={defaultLang} image={heroImageBase} structuredData={structuredData}>

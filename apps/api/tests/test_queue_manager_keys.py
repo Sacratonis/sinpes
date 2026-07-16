@@ -3,12 +3,22 @@ from unittest.mock import MagicMock
 
 from app.services.queue_manager import (
     build_font_object_key,
+    detect_variable_font,
     resolve_variant_weight,
     select_primary_variant_url,
 )
 
 
 class FontObjectKeyTests(unittest.TestCase):
+    def test_variable_font_detection_reads_fvar_table(self):
+        variable = MagicMock()
+        variable.__contains__.side_effect = lambda key: key == "fvar"
+        static = MagicMock()
+        static.__contains__.return_value = False
+
+        self.assertTrue(detect_variable_font(variable))
+        self.assertFalse(detect_variable_font(static))
+
     def test_same_weight_contrast_variants_have_distinct_keys(self):
         hc = build_font_object_key("thunder", "/tmp/Thunder-BoldHC.ttf", 700, "normal")
         lc = build_font_object_key("thunder", "/tmp/Thunder-BoldLC.ttf", 700, "normal")

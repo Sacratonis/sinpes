@@ -29,7 +29,18 @@ class WriterSettings(BaseSettings):
     telegram_bot_token: Optional[str] = Field(default=None, validation_alias="TELEGRAM_WRITER_BOT_TOKEN")
     telegram_review_channel_id: Optional[str] = Field(default=None, validation_alias="TELEGRAM_WRITER_REVIEW_CHANNEL_ID")
     gemini_api_key: Optional[str] = Field(default=None, validation_alias="GEMINI_WRITER_API_KEY")
+    groq_api_key: Optional[str] = Field(default=None, validation_alias="GROQ_WRITER_API_KEY")
     groq_model: str = Field(default="openai/gpt-oss-120b", validation_alias="GROQ_WRITER_MODEL")
+
+class SeoSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    telegram_bot_token: Optional[str] = Field(default=None, validation_alias="TELEGRAM_SEO_BOT_TOKEN")
+    telegram_admin_chat_id: Optional[str] = Field(default=None, validation_alias="TELEGRAM_SEO_ADMIN_CHAT_ID")
+    groq_api_key: Optional[str] = Field(default=None, validation_alias="GROQ_SEO_API_KEY")
+    groq_model: str = Field(default="openai/gpt-oss-20b", validation_alias="GROQ_SEO_MODEL")
+    enabled: bool = Field(default=False, validation_alias="SEO_BOT_ENABLED")
+    report_weekday_utc: int = Field(default=0, ge=0, le=6, validation_alias="SEO_REPORT_WEEKDAY_UTC")
+    report_hour_utc: int = Field(default=9, ge=0, le=23, validation_alias="SEO_REPORT_HOUR_UTC")
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -44,6 +55,7 @@ class Settings(BaseSettings):
     # --- NESTED AI SETTINGS ---
     oracle: OracleSettings = Field(default_factory=OracleSettings)
     writer: WriterSettings = Field(default_factory=WriterSettings)
+    seo: SeoSettings = Field(default_factory=SeoSettings)
 
     # --- CLOUDFLARE R2 ---
     R2_ACCOUNT_ID: str = Field(validation_alias="R2_ACCOUNT_ID")

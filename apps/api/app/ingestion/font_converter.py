@@ -10,7 +10,20 @@ def normalize_display_name(raw_name: str, fallback_slug: str = "") -> str:
     name = name.replace("_", " ")
     name = re.sub(r"\s+", " ", name)
     name = re.sub(r"(?i)\s+letters?\s*\d+\s*[x×х]\s*\d+\s*$", "", name)
-    name = re.sub(r"(?i)\s+(regular|normal|roman)\s*$", "", name)
+    name = re.sub(r"(?i)[\s_-]+(regular|normal|roman)\s*$", "", name)
+    name = re.sub(
+        r"(?i)[\s_-]+(?:free[\s_-]+)?personal[\s_-]+use(?:[\s_-]+only)?\s*$",
+        "",
+        name,
+    )
+    name = re.sub(r"(?i)[\s_-]+(?:demo|trial|evaluation)\s*$", "", name)
+    name = re.sub(r"(?i)[\s_-]+non[\s_-]?commercial(?:[\s_-]+use)?\s*$", "", name)
+    name = re.sub(r"(?<=[a-z0-9])By(?:[A-Z][a-z0-9]*){2,}$", "", name)
+    name = re.sub(
+        r"(?i)\s+by\s+[a-z0-9][a-z0-9.&'_-]*(?:\s+[a-z0-9][a-z0-9.&'_-]*){1,5}$",
+        "",
+        name,
+    )
     name = re.sub(r"(?i)\s+(font|typeface)\s*$", "", name)
     name = re.sub(r"\s*[-–—]+\s*$", "", name).strip()
 

@@ -11,6 +11,35 @@ class FontNameTests(unittest.TestCase):
     def test_removes_style_suffix(self):
         self.assertEqual(normalize_display_name("Example Sans Regular", "example-sans"), "Example Sans")
 
+    def test_removes_concatenated_foundry_credit_and_style(self):
+        self.assertEqual(
+            normalize_display_name("VandalizmByAlbumArtArchive-Regular", "vandalizm"),
+            "Vandalizm",
+        )
+
+    def test_removes_spaced_foundry_credit(self):
+        self.assertEqual(
+            normalize_display_name("Vandalizm By Album Art Archive", "vandalizm"),
+            "Vandalizm",
+        )
+
+    def test_preserves_name_with_by_as_part_of_title(self):
+        self.assertEqual(normalize_display_name("Stand By Me", "stand-by-me"), "Stand By Me")
+
+    def test_removes_personal_use_label_without_rejecting_family(self):
+        self.assertEqual(
+            normalize_display_name("Bright Melody Personal Use Only", "bright-melody"),
+            "Bright Melody",
+        )
+        self.assertEqual(
+            normalize_display_name("Gigxa Free Personal Use", "gigxa"),
+            "Gigxa",
+        )
+
+    def test_removes_trial_and_demo_labels(self):
+        self.assertEqual(normalize_display_name("KTF Rublena Trial", "ktf-rublena"), "KTF Rublena")
+        self.assertEqual(normalize_display_name("Example Demo", "example"), "Example")
+
     def test_uses_slug_for_untitled_font(self):
         self.assertEqual(normalize_display_name("Untitled", "clean-family"), "Clean Family")
 
@@ -26,6 +55,7 @@ class FontNameTests(unittest.TestCase):
         self.assertEqual(get_family_root("Thunder-LightLCItalic.ttf"), "Thunder")
         self.assertEqual(get_family_root("Thunder-HCItalic.ttf"), "Thunder")
         self.assertEqual(get_family_root("Thunder-SemiBoldHC.ttf"), "Thunder")
+
 
 
 if __name__ == "__main__":

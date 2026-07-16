@@ -244,9 +244,13 @@ def register_handlers(client: TelegramClient) -> None:
         with get_db() as connection:
             from app.repositories.queue_repo import QueueRepository
 
-            stats = QueueRepository(connection).get_stats()
+            overview = QueueRepository(connection).get_pipeline_overview()
         await event.reply(
-            f"Queue: {stats.pending_items} pending, {stats.dead_letter_items} failed."
+            "SINPES pipeline\n"
+            f"Live fonts: {overview.live_fonts}\n"
+            f"Ready to publish: {overview.ready_to_publish}\n"
+            f"Pending ingestion: {overview.pending_ingestion}\n"
+            f"Failed ingestion: {overview.failed_ingestion}"
         )
 
     @client.on(events.NewMessage(func=lambda event: event.is_private, pattern=r"^/queue_failed$"))

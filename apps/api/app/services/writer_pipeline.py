@@ -11,6 +11,13 @@ import requests
 
 from app.core.config import config
 from app.services.article_image_service import build_generated_article_image
+from app.services.content_integrity import (
+    ContentIntegrityError,
+    enforce_keyword_integrity,
+    font_capabilities as _font_capabilities,
+    validate_evidence_bound_text,
+    validate_font_claims as _validate_font_claims,
+)
 
 
 ALLOWED_LANGUAGES = {"en", "es", "pt"}
@@ -115,7 +122,7 @@ def _words(value: str) -> list[str]:
 def _catalog_fonts(conn, topic: str, limit: int = 4) -> list[dict]:
     rows = conn.execute(
         """
-        SELECT f.slug, f.display_name, f.category, f.use_cases, f.weights, f.variants,
+        SELECT f.slug, f.display_name, f.category, f.use_cases, f.weights, f.variants, f.is_variable,
                COALESCE(t.description, '') AS description,
                COALESCE(t.seo_image_url, '') AS seo_image_url
         FROM font_registry f
@@ -214,36 +221,7 @@ def _validate_article(payload: dict, fonts: list[dict], language: str, evidence_
         raise InsufficientDepth(scope, word_count, suggestion)
     if word_count > maximum:
         raise ValueError(f"{scope} article is too long at {word_count} words; maximum is {maximum}")
-    plain_text = re.sub(r"<[^>]+>", " ", body)
-    opening = " ".join(plain_text.split()[:70]).lower()
-    if any(phrase in opening for phrase in (
-        "plays a pivotal role", "as we move into", "continues to evolve",
-        "in today's world", "in today’s world", "have you ever wondered",
-    )):
-        raise ValueError("Article begins with generic scene-setting filler")
-    if any(phrase in plain_text.lower() for phrase in (
-        "reduce ink", "ink efficient", "ink-efficient", "environmental impact", "eco-conscious",
-    )):
-        raise ValueError("Article contains an unsupported environmental claim")
-    linked_font_paragraphs = re.findall(r"<p\b[^>]*>.*?/font/.*?</p>", body, re.I | re.S)
-    if any(
-        re.search(
-            r"\b(x[‑-]?height|stroke contrast|stroke thickness|ascenders?|descenders?|glyph shapes?|letterform proportions|small caps|average character width|designed for|clean|modern|elegant|geometric|expressive|decorative|versatile)\b",
-            paragraph,
-            re.I,
-        )
-        for paragraph in linked_font_paragraphs
-    ):
-        raise ValueError("Article makes an unsupported font-anatomy claim")
-    if evidence_level != "measured_trend":
-        if re.search(r"\btrends?\b|\b20\d{2}\b", str(payload["title"]), re.I):
-            raise ValueError("Article title claims a trend or year without measured trend evidence")
-        combined = f"{payload['title']} {plain_text}".lower()
-        if any(re.search(pattern, combined) for pattern in (
-            r"\b20\d{2}\s+is\s+(witnessing|seeing)", r"\blatest trends?\b",
-            r"\bcurrent trends?\b", r"\bsurge in\b", r"\bon the rise\b",
-        )):
-            raise ValueError("Article makes current-trend claims without measured trend evidence")
+    validate_evidence_bound_text(str(payload["title"]), body, evidence_level)
     available = {font["slug"] for font in fonts}
     referenced = list(dict.fromkeys(payload["referenced_font_slugs"]))
     if len(referenced) < 2 or not set(referenced).issubset(available):
@@ -266,60 +244,6 @@ def _validate_article(payload: dict, fonts: list[dict], language: str, evidence_
     }
 
 
-def _font_capabilities(font: dict) -> dict:
-    try:
-        weights = sorted({int(value) for value in json.loads(font.get("weights") or "[]")})
-    except (TypeError, ValueError, json.JSONDecodeError):
-        weights = []
-    try:
-        variants = json.loads(font.get("variants") or "[]")
-    except (TypeError, json.JSONDecodeError):
-        variants = []
-    styles = sorted({str(item.get("style", "normal")) for item in variants})
-    return {"weights": weights, "styles": styles or ["normal"], "is_variable": False}
-
-
-def _validate_font_claims(claims: list[dict], fonts: list[dict], referenced: list[str], body: str) -> list[dict]:
-    if not isinstance(claims, list):
-        raise ValueError("font_claims must be an array")
-    by_slug = {font["slug"]: font for font in fonts}
-    claim_by_slug = {claim.get("slug"): claim for claim in claims if isinstance(claim, dict)}
-    if not set(referenced).issubset(claim_by_slug):
-        raise ValueError("Every referenced font requires a structured font claim")
-    for slug in referenced:
-        capabilities = _font_capabilities(by_slug[slug])
-        claim = claim_by_slug[slug]
-        claimed_weights = {int(value) for value in claim.get("weights", [])}
-        claimed_styles = {str(value) for value in claim.get("styles", [])}
-        if not claimed_weights.issubset(set(capabilities["weights"])):
-            raise ValueError(f"Unsupported weight claim for {slug}")
-        if not claimed_styles.issubset(set(capabilities["styles"])):
-            raise ValueError(f"Unsupported style claim for {slug}")
-        if claim.get("is_variable") and not capabilities["is_variable"]:
-            raise ValueError(f"Unsupported variable-font claim for {slug}")
-    lowered = body.lower()
-    plain_body = re.sub(r"</(?:p|li|h[1-6]|blockquote)>", ". ", body, flags=re.I)
-    plain_body = re.sub(r"<[^>]+>", " ", plain_body)
-    if "variable font" in lowered and not any(_font_capabilities(font)["is_variable"] for font in fonts):
-        raise ValueError("Article makes an unsupported variable-font claim")
-    for font in fonts:
-        name = str(font["display_name"]).lower()
-        capabilities = _font_capabilities(font)
-        sentences = [part.strip() for part in re.split(r"[.!?]", plain_body.lower()) if name in part]
-        for sentence in sentences:
-            if not re.match(r"^(apply|test|compare|use|set|switch|repeat|try|swap|run)\b", sentence):
-                raise ValueError(f"Font reference for {font['slug']} must be a neutral action statement")
-            if re.search(r"\b(because|for its|with its|feels|looks|appears|offers|provides|features|known for|suited for|ideal for|perfect for)\b", sentence):
-                raise ValueError(f"Font reference for {font['slug']} contains an unsupported descriptive claim")
-            if re.search(r"wide range of weights|multiple weights|range of weights", sentence) and len(capabilities["weights"]) < 3:
-                raise ValueError(f"Article exaggerates available weights for {font['slug']}")
-            if re.search(r"italics?|italic styles?", sentence) and "italic" not in capabilities["styles"]:
-                raise ValueError(f"Article makes an unsupported italic claim for {font['slug']}")
-            if re.search(r"\bbold\b", sentence) and not any(weight >= 600 for weight in capabilities["weights"]):
-                raise ValueError(f"Article makes an unsupported bold claim for {font['slug']}")
-    return [claim_by_slug[slug] for slug in referenced]
-
-
 def _body_word_count(payload: dict) -> int:
     body = str(payload.get("body_html", ""))
     return len(_words(re.sub(r"<[^>]+>", " ", body)))
@@ -339,8 +263,8 @@ def generate_article(conn, topic: str, language: str = "en") -> dict:
     language = language.lower()
     if language not in ALLOWED_LANGUAGES:
         raise ValueError("Language must be en, es, or pt")
-    if not config.oracle.groq_api_key:
-        raise RuntimeError("GROQ_ORACLE_API_KEY is not configured")
+    if not config.writer.groq_api_key:
+        raise RuntimeError("GROQ_WRITER_API_KEY is not configured")
     fonts = _catalog_fonts(conn, topic)
     if len(fonts) < 2:
         raise RuntimeError("At least two active SINPES fonts are required")
@@ -348,9 +272,7 @@ def generate_article(conn, topic: str, language: str = "en") -> dict:
     evidence_level = _evidence_level(signal)
     required_scope = _required_scope(topic)
     recent = _recent_articles(conn)[:6]
-    duplicate = _find_duplicate(topic, recent)
-    if duplicate:
-        return {"validity": "invalid", "reasoning": f"Closely duplicates recent article: {duplicate}"}
+    title_overlap_advisory = _find_duplicate(topic, recent)
     font_input = [
         {
             "slug": font["slug"],
@@ -418,7 +340,7 @@ Available SINPES fonts: {json.dumps(font_input, ensure_ascii=False)}"""
     for attempt in range(2):
         response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {config.oracle.groq_api_key}", "Content-Type": "application/json"},
+            headers={"Authorization": f"Bearer {config.writer.groq_api_key}", "Content-Type": "application/json"},
             json={
                 "model": config.writer.groq_model,
                 "messages": [{"role": "user", "content": prompt + retry_instruction}],
@@ -451,6 +373,15 @@ Available SINPES fonts: {json.dumps(font_input, ensure_ascii=False)}"""
         return result
     if conn.execute("SELECT 1 FROM article_queue WHERE slug = ?", (result["slug"],)).fetchone():
         raise ValueError(f"Article slug already exists: {result['slug']}")
+    integrity_report = enforce_keyword_integrity(
+        conn, result["target_keyword"], language, intent_key=signal.get("intent_key"),
+    )
+    if title_overlap_advisory:
+        integrity_report["advisories"].append({
+            "reason": "fuzzy_title_overlap",
+            "title": title_overlap_advisory,
+            "score": 0.7,
+        })
     referenced_fonts = [font for font in fonts if font["slug"] in result["referenced_font_slugs"]]
     image_url, image_alt_text = build_generated_article_image(result, referenced_fonts)
     now = datetime.now(timezone.utc).isoformat()
@@ -463,7 +394,7 @@ Available SINPES fonts: {json.dumps(font_input, ensure_ascii=False)}"""
             content_scope, status, created_at
         ) VALUES (?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 'pending_review', ?)""",
         (
-            article_id, topic, json.dumps({**signal, "writer_model": config.writer.groq_model}), language, result.get("reasoning"), result["title"],
+            article_id, topic, json.dumps({**signal, "writer_model": config.writer.groq_model, "content_integrity": integrity_report}), language, result.get("reasoning"), result["title"],
             result["slug"], result["meta_description"], result["target_keyword"],
             json.dumps(result.get("secondary_keywords", [])), result["body_html"], result["body_html"],
             json.dumps(result["referenced_font_slugs"]), json.dumps(result["font_claims"]), image_url,
@@ -492,7 +423,7 @@ def queue_manual_article(conn, title: str, meta: str, font_slugs: list[str], bod
         raise ValueError("At least two font slugs are required")
     placeholders = ",".join("?" for _ in referenced)
     fonts = conn.execute(
-        f"""SELECT f.slug, f.weights, f.variants, COALESCE(t.seo_image_url, '') AS seo_image_url
+        f"""SELECT f.slug, f.weights, f.variants, f.is_variable, COALESCE(t.seo_image_url, '') AS seo_image_url
             FROM font_registry f LEFT JOIN font_translations t ON t.slug=f.slug AND t.locale='en'
             WHERE f.status='active' AND f.slug IN ({placeholders})""", referenced,
     ).fetchall()
@@ -508,6 +439,7 @@ def queue_manual_article(conn, title: str, meta: str, font_slugs: list[str], bod
     word_count = len(_words(re.sub(r"<[^>]+>", " ", body_html)))
     if not 700 <= word_count <= 1400:
         raise ValueError(f"Article length is {word_count} words; expected 700-1400")
+    integrity_report = enforce_keyword_integrity(conn, title, "en")
     base_slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:80]
     slug = base_slug
     suffix = 2
@@ -524,11 +456,32 @@ def queue_manual_article(conn, title: str, meta: str, font_slugs: list[str], bod
             title, slug, meta_description, target_keyword, secondary_keywords, body_markdown, body_html,
             referenced_font_slugs, font_claims, image_url, image_alt_text, word_count, status, created_at,
             content_scope
-        ) VALUES (?, 'manual', '{}', 'en', 'valid', 'Manually submitted and validated',
+        ) VALUES (?, 'manual', ?, 'en', 'valid', 'Manually submitted and validated',
                   ?, ?, ?, ?, '[]', ?, ?, ?, ?, NULL, NULL, ?, 'awaiting_image', ?, ?)""",
-        (article_id, title, slug, meta, title, body_html, body_html, json.dumps(referenced),
+        (article_id, json.dumps({"content_integrity": integrity_report}), title, slug, meta, title, body_html, body_html, json.dumps(referenced),
          json.dumps(font_claims), word_count, datetime.now(timezone.utc).isoformat(),
          "deep_dive" if word_count >= 1000 else "guide"),
     )
     conn.commit()
     return article_id
+
+
+def publication_integrity_report(conn, article_id: str) -> dict:
+    """Re-run deterministic conflicts immediately before approval or publication."""
+    row = conn.execute(
+        "SELECT id,target_keyword,language,source_keyword_data FROM article_queue WHERE id=?",
+        (article_id,),
+    ).fetchone()
+    if not row:
+        raise ValueError("Article not found")
+    try:
+        source_data = json.loads(row["source_keyword_data"] or "{}")
+    except json.JSONDecodeError:
+        source_data = {}
+    return enforce_keyword_integrity(
+        conn,
+        row["target_keyword"],
+        row["language"],
+        intent_key=source_data.get("intent_key"),
+        exclude_article_id=row["id"],
+    )

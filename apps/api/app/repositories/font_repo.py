@@ -45,15 +45,23 @@ class FontRepository:
         row = self.conn.execute("SELECT slug FROM font_registry WHERE file_hash = ?", (file_hash,)).fetchone()
         return bool(row)
 
+    def find_slug_by_hash(self, file_hash: str) -> Optional[str]:
+        row = self.conn.execute("SELECT slug FROM font_registry WHERE file_hash = ?", (file_hash,)).fetchone()
+        return str(row['slug']) if row else None
+
+    def slug_exists(self, slug: str) -> bool:
+        row = self.conn.execute("SELECT 1 FROM font_registry WHERE slug = ?", (slug,)).fetchone()
+        return bool(row)
+
     def insert_font(self, font: FontRegistry) -> None:
         self.conn.execute(
             """INSERT INTO font_registry (
-                slug, display_name, is_demo, category, variants, weights, 
+                slug, display_name, is_demo, is_variable, category, variants, weights,
                 woff2_url, file_format, file_size_kb, use_cases, status, 
                 vault_status, file_hash, embedded_family_name, last_updated, download_zip_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                font.slug, font.display_name, font.is_demo, font.category, 
+                font.slug, font.display_name, font.is_demo, font.is_variable, font.category,
                 font.variants, font.weights, font.woff2_url, font.file_format, 
                 font.file_size_kb, font.use_cases, font.status, font.vault_status, 
                 font.file_hash, font.embedded_family_name, font.last_updated, font.download_zip_url

@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import time
 import unittest
 from unittest.mock import patch
 
@@ -59,6 +60,38 @@ class AdminCommandTests(unittest.TestCase):
         self.assertTrue(repository.retry_item(1))
         row = self.connection.execute("SELECT * FROM upload_queue WHERE id = 1").fetchone()
         self.assertEqual((row["failed"], row["attempts"], row["last_error"]), (0, 0, None))
+
+    def test_deferred_item_waits_until_retry_time(self):
+        self.connection.execute(
+            "INSERT INTO upload_queue(text_payload, received_at) VALUES(?, ?)",
+            ("{}", str(time.time())),
+        )
+        repository = QueueRepository(self.connection)
+        repository.defer_item(1, "image provider unavailable", 1800)
+
+        self.assertIsNone(repository.get_oldest_pending_item())
+        row = self.connection.execute("SELECT attempts, last_error FROM upload_queue WHERE id = 1").fetchone()
+        self.assertEqual(row["attempts"], 1)
+        self.assertEqual(row["last_error"], "image provider unavailable")
+
+    def test_pipeline_overview_separates_ingestion_and_publication_states(self):
+        self.connection.executemany(
+            "INSERT INTO font_registry(slug,display_name,status) VALUES(?,?,?)",
+            [
+                ("live-one", "Live One", "active"),
+                ("live-two", "Live Two", "active"),
+                ("waiting", "Waiting", "queued"),
+            ],
+        )
+        self.connection.executemany(
+            "INSERT INTO upload_queue(text_payload,processed,failed) VALUES(?,?,?)",
+            [("{}", 0, 0), ("{}", 0, 1)],
+        )
+        overview = QueueRepository(self.connection).get_pipeline_overview()
+        self.assertEqual(overview.live_fonts, 2)
+        self.assertEqual(overview.ready_to_publish, 1)
+        self.assertEqual(overview.pending_ingestion, 1)
+        self.assertEqual(overview.failed_ingestion, 1)
 
     @patch("app.services.admin_actions.delete_r2_objects", return_value=4)
     def test_erase_requires_preview_then_deletes_db_and_r2(self, delete_objects):

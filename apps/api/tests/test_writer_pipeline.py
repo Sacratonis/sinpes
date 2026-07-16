@@ -218,7 +218,7 @@ class WriterPipelineTests(unittest.TestCase):
         conn = sqlite3.connect(":memory:")
         conn.row_factory = sqlite3.Row
         conn.executescript("""
-            CREATE TABLE font_registry (slug TEXT, status TEXT, weights TEXT, variants TEXT);
+            CREATE TABLE font_registry (slug TEXT, status TEXT, weights TEXT, variants TEXT, is_variable BOOLEAN DEFAULT 0);
             CREATE TABLE font_translations (slug TEXT, locale TEXT, seo_image_url TEXT);
             CREATE TABLE article_queue (
                 id TEXT, source_topic TEXT, source_keyword_data TEXT, language TEXT, validity TEXT,
@@ -229,7 +229,7 @@ class WriterPipelineTests(unittest.TestCase):
             );
         """)
         for slug in ("alpha", "beta"):
-            conn.execute("INSERT INTO font_registry VALUES (?, 'active', '[400]', '[{\"weight\":400,\"style\":\"normal\"}]')", (slug,))
+            conn.execute("INSERT INTO font_registry VALUES (?, 'active', '[400]', '[{\"weight\":400,\"style\":\"normal\"}]', 0)", (slug,))
             conn.execute("INSERT INTO font_translations VALUES (?, 'en', 'hero.webp')", (slug,))
         body = '<p><a href="/font/alpha/">Alpha</a> and <a href="/font/beta/">Beta</a>.</p>'
         body += '<h2 id="practical-test">Practical test</h2>' + '<p>Specific typography guidance for interface testing and implementation.</p>' * 100

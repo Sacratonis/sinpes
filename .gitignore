@@ -10,6 +10,8 @@ yarn-error.log*
 __pycache__/
 *.py[cod]
 *$py.class
+*.session
+*.session-journal
 venv/
 env/
 .venv/

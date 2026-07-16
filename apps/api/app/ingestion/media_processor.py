@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 _HERO_HASH_CACHE: dict[str, int] = {}
 _CF_QUOTA_EXHAUSTED_UNTIL: datetime | None = None
 
+
+class HeroImageGenerationError(RuntimeError):
+    """A temporary image-provider or duplicate-image failure safe to retry later."""
+
 def validate_image_bytes(data: bytes) -> bytes:
     try:
         image = Image.open(io.BytesIO(data))
@@ -103,16 +107,16 @@ SCENE_DIRECTIONS = (
     "distinctive architecture with strong geometry and human scale",
     "a coastal or waterside setting with weather and natural texture",
     "an intimate craft studio with tools, materials, and evidence of making",
-    "an editorial fashion scene built around fabric, silhouette, and movement",
     "a lived-in interior with character, daylight, and meaningful objects",
-    "an observational street scene with rhythm, depth, and everyday life",
     "a museum-like still life of unusual objects and tactile materials",
     "a dramatic wilderness detail showing geology, forest, desert, or water",
     "a food or hospitality scene focused on atmosphere rather than branding",
     "an industrial or transport setting with bold structure and perspective",
-    "a cultural gathering or performance captured as documentary photography",
     "a scientific, astronomical, or natural-history subject with visual wonder",
-    "a sport or movement scene with a strong editorial composition",
+    "a remote rural landscape shaped by weather, agriculture, and seasonal color",
+    "an abstract study of light, shadow, glass, stone, or water",
+    "a quiet library or archive interior focused on shelves, paper, and structure",
+    "a macro photograph of minerals, plants, shells, or natural formations",
 )
 
 
@@ -127,8 +131,10 @@ def build_scene_prompt(category: str, use_cases: list[str], slug: str = "", atte
         "creative starting point, not a literal or closed list. Documentary art direction, restrained natural "
         "colors, subtle film grain, tactile materials, confident composition, premium independent design magazine. "
         "Use one clear photographic subject and balanced negative space. "
-        "This is a photograph only, not a graphic poster. No captions, no typography, no letters, no words, "
-        "no numbers, no logos, no watermarks, no signs, no labels, no interface elements. Wide 16:7 composition."
+        "This is a photograph only, not a graphic poster. No visible human faces or portraits; if people are "
+        "present, show them only at a distance, from behind, or with faces fully obscured. No captions, no typography, "
+        "no letters, no words, no digits, no numbers, no logos, no watermarks, no labels, no interface elements. "
+        "Wide 16:7 composition."
     )
 
 
@@ -204,6 +210,7 @@ def process_hero_image(
     duplicate_url = None
     last_generation_error: Exception | None = None
     accepted = False
+    consecutive_generation_failures = 0
     for attempt in range(max_generation_attempts):
         prompt = build_scene_prompt(category, use_cases, slug, attempt)
         seed = int(hashlib.sha256(f"{slug}:{attempt}".encode("utf-8")).hexdigest()[:8], 16)
@@ -211,6 +218,7 @@ def process_hero_image(
             raw_bytes = generate_ai_image_bytes(prompt, seed=seed)
         except Exception as exc:
             last_generation_error = exc
+            consecutive_generation_failures += 1
             logger.warning(
                 "Image generation failed for %s; retrying (%s/%s): %s",
                 slug,
@@ -218,7 +226,10 @@ def process_hero_image(
                 max_generation_attempts,
                 exc,
             )
+            if consecutive_generation_failures >= 2:
+                break
             continue
+        consecutive_generation_failures = 0
         poster_bytes = compose_font_poster(raw_bytes, display_name, font_path)
         duplicate_url = find_duplicate_hero(poster_bytes, existing_image_urls)
         if not duplicate_url:
@@ -233,10 +244,10 @@ def process_hero_image(
         )
     if not accepted:
         if last_generation_error and not poster_bytes:
-            raise RuntimeError(
+            raise HeroImageGenerationError(
                 f"image generator failed after {max_generation_attempts} attempts: {last_generation_error}"
             ) from last_generation_error
-        raise ValueError(
+        raise HeroImageGenerationError(
             f"image generator returned a duplicate hero after {max_generation_attempts} attempts"
         )
     

@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 from app.db.database import get_db
 from app.ingestion.storage_archive import upload_to_r2
 from app.routers.snapshot import export_blog_snapshot, export_snapshot
+from app.services.content_integrity import ContentIntegrityError
 from app.services.deployment_manager import snapshot_hash, trigger_deployment
+from app.services.writer_pipeline import publication_integrity_report
 
 
 def publish_next_approved_article() -> dict:
@@ -18,6 +20,15 @@ def publish_next_approved_article() -> dict:
         ).fetchone()
         if not row:
             return {"published": False, "reason": "no approved articles"}
+        try:
+            publication_integrity_report(conn, row["id"])
+        except ContentIntegrityError as exc:
+            conn.execute(
+                "UPDATE article_queue SET status='pending_review', rejection_note=? WHERE id=?",
+                (f"Publication integrity check: {exc}", row["id"]),
+            )
+            conn.commit()
+            return {"published": False, "reason": str(exc), "id": row["id"]}
         published_at = datetime.now(timezone.utc).isoformat()
         conn.execute(
             "UPDATE article_queue SET status='published', published_at=? WHERE id=?",
