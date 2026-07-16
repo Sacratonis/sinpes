@@ -52,4 +52,7 @@ jobs:
       working-directory: ./apps/web
       run: |
         npm ci
+        npm run test:indexnow
+        npm run test:blog-seo
+        npm run build:blog-fixture
         npm run build

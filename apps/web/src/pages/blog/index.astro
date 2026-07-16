@@ -4,8 +4,10 @@ import BlogCard from '../../components/BlogCard.astro';
 import { blogPosts } from '../../data/blog';
 import { defaultLang } from '../../i18n/ui';
 import { useTranslations } from '../../i18n/utils';
+import { hasCompleteBlogLocale } from '../../lib/blogLocale.mjs';
 
 const t = useTranslations(defaultLang);
+const localizedPosts = blogPosts.filter(post => hasCompleteBlogLocale(post, defaultLang));
 ---
 
 <Layout 
@@ -18,7 +20,7 @@ const t = useTranslations(defaultLang);
     <p>{t('blog.description')}</p>
   </header>
   <main class="view-container blog-grid">
-    {blogPosts.length > 0 ? blogPosts.map(post => (
+    {localizedPosts.length > 0 ? localizedPosts.map(post => (
       <BlogCard title={post.title.en} excerpt={post.excerpt.en} date={post.date} slug={post.slug} locale={defaultLang} />
     )) : <div class="empty-state">{t('blog.empty')}</div>}
   </main>

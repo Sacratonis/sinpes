@@ -6,6 +6,7 @@ from unittest.mock import patch
 from app.repositories.font_repo import FontRepository
 from app.repositories.meta_repo import MetaRepository
 from app.services.deployment_manager import (
+    PENDING_ARTICLES_KEY,
     confirm_deployment_success,
     get_deployment_status,
     snapshot_hash,
@@ -138,6 +139,37 @@ class PublishingTests(unittest.TestCase):
         self.assertEqual(confirmation["indexnow"]["status"], "submitted")
         submit.assert_called_once_with(self.connection)
 
+    def test_confirmation_promotes_pending_articles_after_build_success(self):
+        self.connection.execute(
+            """CREATE TABLE article_queue (
+                id TEXT PRIMARY KEY, slug TEXT, title TEXT, status TEXT, published_at TEXT
+            )"""
+        )
+        self.connection.execute(
+            "INSERT INTO article_queue(id,slug,title,status) VALUES('a1','first-post','First post','publishing')"
+        )
+        self.connection.commit()
+        decision = self.trigger(pending_article_ids=["a1"])
+        self.assertTrue(decision.triggered)
+        self.assertEqual(
+            MetaRepository(self.connection).get_value(PENDING_ARTICLES_KEY),
+            '["a1"]',
+        )
+
+        with patch(
+            "app.services.deployment_manager.submit_pending_indexnow",
+            return_value={"status": "submitted", "count": 0},
+        ):
+            confirmation = confirm_deployment_success(self.connection)
+
+        self.assertEqual(confirmation["status"], "ok")
+        self.assertEqual(confirmation["published_articles"][0]["slug"], "first-post")
+        self.assertEqual(
+            self.connection.execute("SELECT status FROM article_queue WHERE id='a1'").fetchone()[0],
+            "published",
+        )
+        self.assertEqual(MetaRepository(self.connection).get_value(PENDING_ARTICLES_KEY), "[]")
+
     def test_confirmation_without_pending_deployment_is_ignored(self):
         self.assertEqual(confirm_deployment_success(self.connection)["status"], "ignored")
 
@@ -153,6 +185,31 @@ class PublishingTests(unittest.TestCase):
         self.assertFalse(status["in_progress"])
         self.assertEqual(status["pending_hash"], "")
         self.assertEqual(status["last_error"], "Cloudflare build confirmation timed out")
+
+    def test_stale_build_lock_reverts_pending_articles_to_approved(self):
+        self.connection.execute(
+            """CREATE TABLE article_queue (
+                id TEXT PRIMARY KEY, slug TEXT, title TEXT, status TEXT, published_at TEXT
+            )"""
+        )
+        self.connection.execute(
+            "INSERT INTO article_queue(id,slug,title,status) VALUES('a1','first-post','First post','publishing')"
+        )
+        repository = MetaRepository(self.connection)
+        repository.set_value("build_in_progress", "true")
+        repository.set_value("last_build_triggered_at", "1")
+        repository.set_value("pending_snapshot_hash", "stale")
+        repository.set_value(PENDING_ARTICLES_KEY, '["a1"]')
+        self.connection.commit()
+
+        with patch("app.services.deployment_manager.config.DEPLOY_STALE_LOCK_SECONDS", 60):
+            get_deployment_status(self.connection)
+
+        self.assertEqual(
+            self.connection.execute("SELECT status FROM article_queue WHERE id='a1'").fetchone()[0],
+            "approved",
+        )
+        self.assertEqual(MetaRepository(self.connection).get_value(PENDING_ARTICLES_KEY), "[]")
 
 
 if __name__ == "__main__":

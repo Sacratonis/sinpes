@@ -9,18 +9,28 @@ export function generateCanonical(siteUrl: string | URL, pathname: string): stri
   return new URL(normalizeSeoPath(pathname), url).href;
 }
 
-export function generateHreflang(siteUrl: string | URL, pathname: string, currentLocale: keyof typeof languages) {
+export function generateHreflang(
+  siteUrl: string | URL,
+  pathname: string,
+  currentLocale: keyof typeof languages,
+  availableLocales: Array<keyof typeof languages> = Object.keys(languages) as Array<keyof typeof languages>
+) {
   const url = typeof siteUrl === 'string' ? new URL(siteUrl) : siteUrl;
   
   const links: Record<string, string> = {};
   
-  for (const langCode of Object.keys(languages)) {
+  for (const langCode of availableLocales) {
     const path = getLanguageUrl(pathname, currentLocale as any, langCode as any);
     links[langCode] = new URL(normalizeSeoPath(path), url).href;
   }
   
-  const xDefaultPath = getLanguageUrl(pathname, currentLocale as any, defaultLang as any);
-  links['x-default'] = new URL(normalizeSeoPath(xDefaultPath), url).href;
+  const xDefaultLocale = availableLocales.includes(defaultLang)
+    ? defaultLang
+    : availableLocales[0];
+  if (xDefaultLocale) {
+    const xDefaultPath = getLanguageUrl(pathname, currentLocale as any, xDefaultLocale as any);
+    links['x-default'] = new URL(normalizeSeoPath(xDefaultPath), url).href;
+  }
   
   return links;
 }

@@ -28,6 +28,10 @@ class WriterSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     telegram_bot_token: Optional[str] = Field(default=None, validation_alias="TELEGRAM_WRITER_BOT_TOKEN")
     telegram_review_channel_id: Optional[str] = Field(default=None, validation_alias="TELEGRAM_WRITER_REVIEW_CHANNEL_ID")
+    telegram_admin_chat_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("TELEGRAM_WRITER_ADMIN_CHAT_ID", "TELEGRAM_SEO_ADMIN_CHAT_ID"),
+    )
     gemini_api_key: Optional[str] = Field(default=None, validation_alias="GEMINI_WRITER_API_KEY")
     groq_api_key: Optional[str] = Field(default=None, validation_alias="GROQ_WRITER_API_KEY")
     groq_model: str = Field(default="openai/gpt-oss-120b", validation_alias="GROQ_WRITER_MODEL")

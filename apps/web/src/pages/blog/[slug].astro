@@ -1,16 +1,50 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import { blogPosts } from '../../data/blog';
-import { defaultLang } from '../../i18n/ui';
+import { languages, defaultLang } from '../../i18n/ui';
+import { useTranslations } from '../../i18n/utils';
+import { generateCanonical } from '../../lib/seo';
+import { buildBlogArticleSchema } from '../../lib/blogSchema';
+import { completeBlogLocales, hasCompleteBlogLocale } from '../../lib/blogLocale.mjs';
 
 export async function getStaticPaths() {
-  return blogPosts.map((post) => ({ params: { slug: post.slug }, props: { post } }));
+  return blogPosts
+    .filter((post) => hasCompleteBlogLocale(post, defaultLang))
+    .map((post) => ({ params: { slug: post.slug }, props: { post } }));
 }
 
 const { post } = Astro.props;
 const locale = defaultLang;
 const title = post.title[locale];
 const content = post.content[locale];
+const excerpt = post.excerpt[locale];
+const t = useTranslations(locale);
+const siteURL = Astro.site || new URL('https://sinpes.com');
+const pageUrl = generateCanonical(siteURL, Astro.url.pathname);
+const homeUrl = generateCanonical(siteURL, '/');
+const blogUrl = generateCanonical(siteURL, '/blog/');
+const aboutUrl = generateCanonical(siteURL, '/about/');
+const imageAlt = post.image_alt_text || title;
+const availableLocales = completeBlogLocales(
+  post,
+  Object.keys(languages)
+) as Array<keyof typeof languages>;
+const structuredData = buildBlogArticleSchema({
+  pageUrl,
+  blogUrl,
+  homeUrl,
+  aboutUrl,
+  title,
+  description: excerpt,
+  contentHtml: content,
+  locale,
+  publishedAt: post.date,
+  imageUrl: post.image_url ? new URL(post.image_url, siteURL).href : undefined,
+  imageAlt,
+  targetKeyword: post.target_keyword,
+  blogName: t('nav.blog'),
+  homeName: t('nav.library'),
+});
 
 // Extract TOC from H2 tags
 const tocRegex = /<h2\s+id="([^"]+)">(.*?)<\/h2>/gi;
@@ -20,13 +54,28 @@ while ((match = tocRegex.exec(content)) !== null) {
   tocItems.push({ id: match[1], text: match[2] });
 }
 ---
-<Layout title={title} description={post.excerpt[locale]} locale={locale}>
+<Layout
+  title={title}
+  description={excerpt}
+  locale={locale}
+  image={post.image_url}
+  imageAlt={imageAlt}
+  imageWidth={1200}
+  imageHeight={630}
+  ogType="article"
+  articlePublishedTime={post.date}
+  articleModifiedTime={post.date}
+  articleSection="Typography"
+  articleAuthorUrl={aboutUrl}
+  availableLocales={availableLocales}
+  structuredData={structuredData}
+>
   <main class="blog-reader view-container">
     <article class="blog-main">
       <header class="blog-header">
         <span class="label-upper tabular">{post.date} · EDITORIAL</span>
         <h1>{title}</h1>
-        <p class="excerpt">{post.excerpt[locale]}</p>
+        <p class="excerpt">{excerpt}</p>
       </header>
       {post.image_url && (
         <img

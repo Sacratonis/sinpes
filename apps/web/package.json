@@ -7,13 +7,15 @@
     "build": "astro build",
     "preview": "astro preview",
     "test:search": "node --test tests/fontSearch.test.mjs",
+    "test:indexnow": "node --test tests/submitIndexNow.test.mjs",
+    "test:blog-seo": "node --test tests/blogLocale.test.mjs",
+    "build:blog-fixture": "node scripts/build-blog-fixture.mjs",
     "test:seo": "node scripts/audit-seo.mjs",
     "seo:indexnow": "node scripts/submit-indexnow.mjs",
     "postbuild": "npx pagefind --site dist && node scripts/audit-seo.mjs && node scripts/notify-build-success.mjs"
   },
   "dependencies": {
     "@astrojs/preact": "^3.5.4",
-    "@astrojs/sitemap": "^3.1.6",
     "astro": "^4.0.0",
     "preact": "^10.29.4"
   },

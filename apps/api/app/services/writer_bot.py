@@ -12,12 +12,28 @@ from app.services.content_integrity import ContentIntegrityError
 from app.services.writer_pipeline import (
     InsufficientDepth,
     WriterValidationFailure,
+    edit_stored_article,
     generate_article,
     publication_integrity_report,
     queue_manual_article,
 )
 
 logger = logging.getLogger("sinpes.writer_bot")
+
+
+def approval_block_message(exc: Exception) -> str:
+    """Return the exact deterministic reason instead of a generic approval failure."""
+    return (
+        f"⚠️ Approval blocked by deterministic validation: {exc}\n"
+        "Edit the article to resolve this exact issue, then approve it again."
+    )
+
+
+def is_owner_private_chat(sender_id, chat_id, is_private: bool, owner_id) -> bool:
+    try:
+        return bool(is_private and int(sender_id) == int(owner_id) and int(chat_id) == int(owner_id))
+    except (TypeError, ValueError):
+        return False
 
 
 def start_bot():
@@ -43,6 +59,15 @@ def start_bot():
             return False
         return True
 
+    async def owner_authorized(event) -> bool:
+        if not await authorized(event):
+            return False
+        owner_id = config.writer.telegram_admin_chat_id
+        allowed = is_owner_private_chat(event.sender_id, event.chat_id, event.is_private, owner_id)
+        if not allowed:
+            await event.reply("This publishing command is limited to the configured owner in a private chat.")
+        return allowed
+
     @client.on(events.NewMessage(pattern=r"^/(start|help)$"))
     async def help_command(event):
         if not await authorized(event): return
@@ -50,6 +75,7 @@ def start_bot():
             "SINPES Writer\n\n"
             "/draft <topic>\n/draft <en|es|pt> <topic>\n/pending\n/review <id>\n/review_meta <id>\n"
             "/approve <id>\n/reject <id> <reason>\n/edit <id> <title|meta|body> <value>\n"
+            "/publish_articles [limit] — owner-only, one deployment\n"
             "/post_article <title> | <meta> | <font1,font2> | <HTML body>\n"
             "Upload a curated image with caption: /article_image <id>"
         )
@@ -204,9 +230,13 @@ def start_bot():
         if not await authorized(event): return
         try:
             ok = set_status(event.pattern_match.group(1), "approved")
-            await event.reply("✅ Approved for the next editorial publishing slot." if ok else "Article cannot be approved.")
-        except ContentIntegrityError as exc:
-            await event.reply(f"⚠️ Approval blocked: {exc}\nResolve the exact keyword or intent conflict first.")
+            await event.reply(
+                "✅ Approved for the next editorial publishing slot."
+                if ok else
+                "⚠️ Approval blocked: only pending-review, edited, or rejected articles can be approved."
+            )
+        except (ContentIntegrityError, ValueError) as exc:
+            await event.reply(approval_block_message(exc))
 
     @client.on(events.CallbackQuery(pattern=rb"^approve:(.+)$"))
     async def approve_callback(event):
@@ -214,9 +244,13 @@ def start_bot():
         article_id = event.pattern_match.group(1).decode()
         try:
             ok = set_status(article_id, "approved")
-            await event.edit("✅ Approved for the next editorial publishing slot." if ok else "Article cannot be approved.")
-        except ContentIntegrityError as exc:
-            await event.edit(f"⚠️ Approval blocked: {exc}\nResolve the exact keyword or intent conflict first.")
+            await event.edit(
+                "✅ Approved for the next editorial publishing slot."
+                if ok else
+                "⚠️ Approval blocked: only pending-review, edited, or rejected articles can be approved."
+            )
+        except (ContentIntegrityError, ValueError) as exc:
+            await event.edit(approval_block_message(exc))
 
     @client.on(events.NewMessage(pattern=r"^/reject\s+([a-f0-9-]+)\s+(.+)$"))
     async def reject_command(event):
@@ -234,17 +268,43 @@ def start_bot():
     async def edit_command(event):
         if not await authorized(event): return
         article_id, field, value = event.pattern_match.groups()
-        column = {"title": "title", "meta": "meta_description", "body": "body_html"}[field]
-        if field == "meta" and len(value.strip()) > 160:
-            await event.reply("Meta description must be 160 characters or fewer.")
+        try:
+            with get_db() as conn:
+                updated = edit_stored_article(conn, article_id, field, value)
+                conn.commit()
+            await event.reply("✏️ Saved and fully revalidated. Review and approve it again." if updated else "Article cannot be edited.")
+        except Exception as exc:
+            await event.reply(f"❌ Edit rejected; the previous article was preserved: {exc}")
+
+    @client.on(events.NewMessage(func=lambda event: event.is_private, pattern=r"^/publish_articles(?:\s+(\d+))?$"))
+    async def publish_articles_command(event):
+        if not await owner_authorized(event): return
+        limit = int(event.pattern_match.group(1) or 9)
+        if not 1 <= limit <= 20:
+            await event.reply("Limit must be between 1 and 20.")
             return
-        with get_db() as conn:
-            cursor = conn.execute(
-                f"UPDATE article_queue SET {column}=?, status='edited' WHERE id=? AND status IN ('pending_review','edited','rejected')",
-                (value.strip(), article_id),
+        await event.reply(f"Publishing up to {limit} approved articles in one website deployment…")
+
+        def run():
+            from app.services.article_publisher import publish_approved_articles
+            return publish_approved_articles(limit=limit, automatic=False, source="writer_batch")
+
+        try:
+            result = await asyncio.get_running_loop().run_in_executor(None, run)
+            if not result["published_count"]:
+                await event.reply(
+                    f"No articles were published. {result['reason']}"
+                    + (f"\nReturned to review: {len(result['rejected'])}" if result["rejected"] else "")
+                )
+                return
+            await event.reply(
+                f"✅ {result['published_count']} article(s) published in one deployment.\n"
+                f"IndexNow URLs queued: {result['indexnow_url_count']}\n"
+                f"Slugs: {', '.join(result['slugs'])}"
             )
-            conn.commit()
-        await event.reply("✏️ Saved. Review and approve it again." if cursor.rowcount else "Article cannot be edited.")
+        except Exception as exc:
+            logger.exception("Writer batch publication failed")
+            await event.reply(f"❌ Batch publication failed safely: {exc}")
 
     @client.on(events.NewMessage(pattern=r"(?s)^/post_article\s+(.+)$"))
     async def post_article_command(event):

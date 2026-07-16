@@ -14,6 +14,7 @@ ACTIVE_CONTENT_STATUSES = (
     "pending_review",
     "edited",
     "approved",
+    "publishing",
     "published",
 )
 GENERIC_TERMS = {
@@ -208,20 +209,42 @@ def validate_font_claims(claims: list[dict], fonts: list[dict], referenced: list
     if not isinstance(claims, list):
         raise ContentIntegrityError("font_claims must be an array")
     by_slug = {font["slug"]: font for font in fonts}
-    claim_by_slug = {claim.get("slug"): claim for claim in claims if isinstance(claim, dict)}
-    if not set(referenced).issubset(claim_by_slug):
-        raise ContentIntegrityError("Every referenced font requires a structured font claim")
+    allowed_keys = {"slug", "weights", "styles", "is_variable"}
+    if len(claims) != len(referenced) or not all(isinstance(claim, dict) for claim in claims):
+        raise ContentIntegrityError("font_claims must contain exactly one object per referenced font")
+    if any(set(claim) != allowed_keys for claim in claims):
+        raise ContentIntegrityError("Every font claim must use exactly slug, weights, styles, and is_variable")
+    claim_slugs = [claim["slug"] for claim in claims]
+    if (
+        not all(isinstance(slug, str) for slug in claim_slugs)
+        or len(set(claim_slugs)) != len(claim_slugs)
+        or set(claim_slugs) != set(referenced)
+    ):
+        raise ContentIntegrityError("font_claims must exactly match the referenced fonts")
+    claim_by_slug = {claim["slug"]: claim for claim in claims}
     for slug in referenced:
         capabilities = font_capabilities(by_slug[slug])
         claim = claim_by_slug[slug]
-        claimed_weights = {int(value) for value in claim.get("weights", [])}
-        claimed_styles = {str(value) for value in claim.get("styles", [])}
-        if not claimed_weights.issubset(set(capabilities["weights"])):
-            raise ContentIntegrityError(f"Unsupported weight claim for {slug}")
-        if not claimed_styles.issubset(set(capabilities["styles"])):
-            raise ContentIntegrityError(f"Unsupported style claim for {slug}")
-        if claim.get("is_variable") and not capabilities["is_variable"]:
-            raise ContentIntegrityError(f"Unsupported variable-font claim for {slug}")
+        if (
+            not isinstance(claim["weights"], list)
+            or any(not isinstance(value, int) or isinstance(value, bool) for value in claim["weights"])
+            or claim["weights"] != capabilities["weights"]
+        ):
+            raise ContentIntegrityError(
+                f"Unsupported weight claim for {slug}: values must exactly match the registry"
+            )
+        if (
+            not isinstance(claim["styles"], list)
+            or not all(isinstance(value, str) for value in claim["styles"])
+            or claim["styles"] != capabilities["styles"]
+        ):
+            raise ContentIntegrityError(
+                f"Unsupported style claim for {slug}: values must exactly match the registry"
+            )
+        if not isinstance(claim["is_variable"], bool) or claim["is_variable"] is not capabilities["is_variable"]:
+            raise ContentIntegrityError(
+                f"Unsupported variable-font claim for {slug}: value must exactly match the registry"
+            )
     lowered = body.lower()
     plain_body = re.sub(r"</(?:p|li|h[1-6]|blockquote)>", ". ", body, flags=re.I)
     plain_body = re.sub(r"<[^>]+>", " ", plain_body)
@@ -236,8 +259,18 @@ def validate_font_claims(claims: list[dict], fonts: list[dict], referenced: list
         for sentence in sentences:
             if not re.match(r"^(apply|test|compare|use|set|switch|repeat|try|swap|run)\b", sentence):
                 raise ContentIntegrityError(f"Font reference for {font['slug']} must be a neutral action statement")
-            if re.search(r"\b(because|for its|with its|feels|looks|appears|offers|provides|features|known for|suited for|ideal for|perfect for)\b", sentence):
-                raise ContentIntegrityError(f"Font reference for {font['slug']} contains an unsupported descriptive claim")
+            # Positive evidence rule: font-linked prose may instruct a test or comparison,
+            # but it may not contain a dependent explanation or purpose claim. That keeps
+            # appearance, tone, personality, and suitability assertions out without trying
+            # to enumerate every possible descriptive adjective.
+            if re.search(r"[,;:]\s*(?:because|which|that|while|whereas)\b", sentence):
+                raise ContentIntegrityError(f"Font reference for {font['slug']} must remain a standalone action")
+            if re.search(r"\b(?:because|for|as|known\s+for)\b", sentence):
+                raise ContentIntegrityError(f"Font reference for {font['slug']} contains an unverified rationale")
+            if re.search(r"\b(?:it|they|font|typeface)\s+(?:is|are|has|have|feels?|looks?|appears?|offers?|provides?|features?|conveys?|creates?|adds?|brings?|evokes?)\b", sentence):
+                raise ContentIntegrityError(f"Font reference for {font['slug']} contains an unsupported assertion")
+            if not re.match(r"^(?:switch|swap|set)\b", sentence) and re.search(r"\bto\s+[a-z]+", sentence):
+                raise ContentIntegrityError(f"Font reference for {font['slug']} contains an unverified purpose claim")
             if re.search(r"wide range of weights|multiple weights|range of weights", sentence) and len(capabilities["weights"]) < 3:
                 raise ContentIntegrityError(f"Content exaggerates available weights for {font['slug']}")
             if re.search(r"italics?|italic styles?", sentence) and "italic" not in capabilities["styles"]:

@@ -1,6 +1,6 @@
 User-agent: *
 Allow: /
 
-# Direct crawlers to the sitemap index to discover localized routes
+# The index separates fonts, categories, editorial pages, static pages, and images.
 Sitemap: https://sinpes.com/sitemap-index.xml
 Sitemap: https://sinpes.com/image-sitemap.xml

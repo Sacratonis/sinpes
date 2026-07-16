@@ -8,6 +8,7 @@ from app.services.indexnow import (
     PENDING_KEY,
     localized_urls,
     queue_indexnow_urls,
+    remove_queued_indexnow_urls,
     submit_pending_indexnow,
 )
 
@@ -67,6 +68,20 @@ class IndexNowTests(unittest.TestCase):
             [],
         )
         post.assert_called_once()
+
+    def test_rollback_removes_only_matching_pending_urls(self):
+        MetaRepository(self.connection).set_value(
+            PENDING_KEY,
+            json.dumps([
+                "https://sinpes.com/blog/keep/",
+                "https://sinpes.com/blog/rollback/",
+            ]),
+        )
+        remaining = remove_queued_indexnow_urls(
+            self.connection,
+            ["https://sinpes.com/blog/rollback/"],
+        )
+        self.assertEqual(remaining, ["https://sinpes.com/blog/keep/"])
 
 
 if __name__ == "__main__":

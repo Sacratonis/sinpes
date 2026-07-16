@@ -17,14 +17,15 @@ LAST_SUBMITTED_KEY = "last_indexnow_submitted_urls"
 LOCALES = ("en", "es", "pt")
 
 
-def localized_urls(path: str) -> list[str]:
+def localized_urls(path: str, locales: tuple[str, ...] | list[str] | None = None) -> list[str]:
     trimmed = path.strip("/")
     normalized = f"/{trimmed}/" if trimmed else "/"
     site = config.SITE_URL.rstrip("/") + "/"
+    locales = tuple(dict.fromkeys(locale for locale in (locales or LOCALES) if locale in LOCALES))
     urls = [urljoin(site, normalized.lstrip("/"))]
     urls.extend(
         urljoin(site, f"{locale}{normalized}")
-        for locale in LOCALES
+        for locale in locales
         if locale != "en"
     )
     return urls
@@ -49,6 +50,22 @@ def queue_indexnow_urls(conn, urls: list[str]) -> list[str]:
     ordered = sorted(combined)
     meta.set_value(PENDING_KEY, json.dumps(ordered))
     return ordered
+
+
+def remove_queued_indexnow_urls(conn, urls: list[str]) -> list[str]:
+    """Remove URLs whose matching content/deployment was rolled back."""
+    meta = MetaRepository(conn)
+    try:
+        pending = json.loads(meta.get_value(PENDING_KEY) or "[]")
+    except json.JSONDecodeError:
+        pending = []
+    removed = {str(url).strip() for url in urls if str(url).strip()}
+    remaining = sorted(
+        str(url).strip() for url in pending
+        if str(url).strip() and str(url).strip() not in removed
+    )
+    meta.set_value(PENDING_KEY, json.dumps(remaining))
+    return remaining
 
 
 def submit_pending_indexnow(conn) -> dict:
