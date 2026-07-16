@@ -39,6 +39,9 @@ for (const file of files) {
 
   if (!title) failures.push(`${relative}: missing title`);
   if (!description) failures.push(`${relative}: missing meta description`);
+  if (!html.includes('<meta name="msvalidate.01" content="451E1BD0AE8253F7665FC14EBC0D57B6"')) {
+    failures.push(`${relative}: missing Bing Webmaster verification`);
+  }
   if (description.length > 160) failures.push(`${relative}: meta description is ${description.length} characters`);
   if (!canonical) failures.push(`${relative}: missing canonical URL`);
   if (!is404 && canonical && !canonical.endsWith('/')) failures.push(`${relative}: canonical URL must end with /`);
@@ -53,8 +56,20 @@ for (const file of files) {
     } else {
       try {
         const data = JSON.parse(jsonLd);
+        const graph = Array.isArray(data?.['@graph']) ? data['@graph'] : [];
+        if (isHome) {
+          const requiredTypes = ['Organization', 'WebSite', 'CollectionPage', 'ItemList'];
+          for (const type of requiredTypes) {
+            if (!graph.some(item => item?.['@type'] === type)) {
+              failures.push(`${relative}: homepage schema missing ${type}`);
+            }
+          }
+          const itemList = graph.find(item => item?.['@type'] === 'ItemList');
+          if (!Array.isArray(itemList?.itemListElement)) {
+            failures.push(`${relative}: homepage ItemList has no font entries`);
+          }
+        }
         if (isFont) {
-          const graph = Array.isArray(data?.['@graph']) ? data['@graph'] : [];
           const webPage = graph.find(item => item?.['@type'] === 'WebPage');
           const imageObject = graph.find(item => item?.['@type'] === 'ImageObject');
           const hasHero = /<img\b[^>]*class="[^"]*"[^>]*>/s.test(html) || html.includes('class="hero-cinema"');
@@ -67,6 +82,14 @@ for (const file of files) {
       }
     }
   }
+}
+
+try {
+  const key = '9a016cc587051b4a818487a5046cf90e';
+  const keyBody = (await readFile(path.join(distDir, `${key}.txt`), 'utf8')).trim();
+  if (keyBody !== key) failures.push('IndexNow key file does not match its filename');
+} catch {
+  failures.push('IndexNow verification key file is missing');
 }
 
 const imageSitemapPath = path.join(distDir, 'image-sitemap.xml');

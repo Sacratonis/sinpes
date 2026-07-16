@@ -8,6 +8,7 @@
     "preview": "astro preview",
     "test:search": "node --test tests/fontSearch.test.mjs",
     "test:seo": "node scripts/audit-seo.mjs",
+    "seo:indexnow": "node scripts/submit-indexnow.mjs",
     "postbuild": "npx pagefind --site dist && node scripts/audit-seo.mjs && node scripts/notify-build-success.mjs"
   },
   "dependencies": {

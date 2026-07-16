@@ -8,6 +8,7 @@ from app.services.deployment_manager import (
     snapshot_hash,
     trigger_deployment,
 )
+from app.services.indexnow import localized_urls
 
 def alert_curator(msg: str):
     """Sends a critical alert to the main Telegram channel."""
@@ -39,7 +40,18 @@ def run_daily_batch(force: bool = False, automatic: bool = True):
             from app.repositories.font_repo import FontRepository
             m_repo = MetaRepository(conn)
             f_repo = FontRepository(conn)
-            
+
+            queued_rows = conn.execute(
+                """
+                SELECT font_registry.slug, font_registry.category
+                FROM font_registry
+                INNER JOIN categories ON categories.slug = font_registry.category
+                WHERE font_registry.status = 'queued'
+                ORDER BY font_registry.rowid ASC
+                LIMIT 48
+                """
+            ).fetchall()
+
             # Activate up to 48 fonts in the exact order they were queued
             f_repo.activate_queued_fonts(48)
             conn.commit()
@@ -60,10 +72,16 @@ def run_daily_batch(force: bool = False, automatic: bool = True):
                 cache_control="no-cache"
             )
 
+            changed_urls = localized_urls("/")
+            for row in queued_rows:
+                changed_urls.extend(localized_urls(f"/font/{row['slug']}/"))
+                changed_urls.extend(localized_urls(f"/category/{row['category']}/"))
+
             decision = trigger_deployment(
                 conn,
                 artifact_hash=snapshot_hash(snapshot_json, blog_snapshot_json),
                 source="daily_font_batch" if automatic else "telegram_publish",
+                indexnow_urls=changed_urls,
                 force=force,
                 automatic=automatic,
             )

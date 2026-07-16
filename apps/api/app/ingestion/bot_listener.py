@@ -482,9 +482,18 @@ def register_handlers(client: TelegramClient) -> None:
             return
         slug = event.pattern_match.group(1)
         with get_db() as connection:
+            row = connection.execute(
+                "SELECT category FROM font_registry WHERE slug = ?", (slug,)
+            ).fetchone()
             cursor = connection.execute(
                 "UPDATE font_registry SET status = 'removed' WHERE slug = ?", (slug,)
             )
+            if cursor.rowcount:
+                from app.services.indexnow import localized_urls, queue_indexnow_urls
+                changed_urls = localized_urls("/") + localized_urls(f"/font/{slug}/")
+                if row and row["category"]:
+                    changed_urls.extend(localized_urls(f"/category/{row['category']}/"))
+                queue_indexnow_urls(connection, changed_urls)
             connection.commit()
         await event.reply(
             f"✅ {slug} unpublished. Run /publish to update the website." if cursor.rowcount
@@ -512,10 +521,16 @@ def register_handlers(client: TelegramClient) -> None:
         if not await require_channel_admin(event):
             return
         from app.services.admin_actions import confirm_erase
+        from app.services.indexnow import localized_urls, queue_indexnow_urls
         slug = event.pattern_match.group(1)
         try:
             with get_db() as connection:
                 deleted = confirm_erase(connection, slug)
+                queue_indexnow_urls(
+                    connection,
+                    localized_urls("/") + localized_urls(f"/font/{slug}/"),
+                )
+                connection.commit()
             await event.reply(
                 f"✅ {slug} erased from the database and {deleted} R2 files. Run /publish to update the website."
             )
@@ -532,7 +547,14 @@ def register_handlers(client: TelegramClient) -> None:
 
         def execute():
             with get_db() as connection:
-                return regenerate_font_poster(connection, slug)
+                result = regenerate_font_poster(connection, slug)
+                from app.services.indexnow import localized_urls, queue_indexnow_urls
+                queue_indexnow_urls(
+                    connection,
+                    localized_urls("/") + localized_urls(f"/font/{slug}/"),
+                )
+                connection.commit()
+                return result
 
         try:
             await asyncio.get_running_loop().run_in_executor(None, execute)

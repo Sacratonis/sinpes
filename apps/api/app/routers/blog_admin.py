@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.db.database import get_db
 from app.core.security import verify_build_secret
 from app.services.deployment_manager import snapshot_hash, trigger_deployment
+from app.services.indexnow import localized_urls
 
 router = APIRouter(prefix="/blog")
 
@@ -45,6 +46,11 @@ def publish_blog_post(slug: str, _ = Depends(verify_build_secret)):
             conn,
             artifact_hash=snapshot_hash(font_json, blog_json),
             source="blog_admin",
+            indexnow_urls=(
+                localized_urls("/")
+                + localized_urls("/blog/")
+                + localized_urls(f"/blog/{slug}/")
+            ),
             automatic=False,
         )
 
