@@ -8,7 +8,8 @@ class FontRepository:
 
     def get_snapshot_batch(self, last_rowid: int, limit: int) -> List[FontRegistry]:
         rows = self.conn.execute(
-            "SELECT rowid, * FROM font_registry WHERE status = 'active' AND rowid > ? ORDER BY rowid ASC LIMIT ?", 
+            "SELECT rowid, * FROM font_registry WHERE status IN ('active', 'publishing') "
+            "AND rowid > ? ORDER BY rowid ASC LIMIT ?",
             (last_rowid, limit)
         ).fetchall()
         return [FontRegistry(**dict(row)) for row in rows]
@@ -30,16 +31,24 @@ class FontRepository:
         rows = self.conn.execute("SELECT slug FROM font_registry").fetchall()
         return [row['slug'] for row in rows]
 
-    def activate_queued_fonts(self, limit: int) -> None:
-        self.conn.execute("""
-            UPDATE font_registry SET status = 'active'
+    def mark_queued_fonts_publishing(self, limit: int) -> list[str]:
+        rows = self.conn.execute("""
+            SELECT font_registry.slug FROM font_registry
+            INNER JOIN categories ON categories.slug = font_registry.category
+            WHERE font_registry.status = 'queued'
+            ORDER BY font_registry.rowid ASC LIMIT ?
+        """, (limit,)).fetchall()
+        slugs = [str(row["slug"]) for row in rows]
+        if not slugs:
+            return []
+        placeholders = ",".join("?" for _ in slugs)
+        self.conn.execute(f"""
+            UPDATE font_registry SET status = 'publishing'
             WHERE slug IN (
-                SELECT font_registry.slug FROM font_registry
-                INNER JOIN categories ON categories.slug = font_registry.category
-                WHERE font_registry.status = 'queued'
-                ORDER BY font_registry.rowid ASC LIMIT ?
+                {placeholders}
             )
-        """, (limit,))
+        """, slugs)
+        return slugs
 
     def check_hash_exists(self, file_hash: str) -> bool:
         row = self.conn.execute("SELECT slug FROM font_registry WHERE file_hash = ?", (file_hash,)).fetchone()

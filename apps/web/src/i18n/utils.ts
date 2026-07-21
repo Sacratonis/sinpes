@@ -7,10 +7,15 @@ export function useTranslations(lang: keyof typeof ui) {
 }
 
 export function getLanguageUrl(currentPath: string, currentLang: string, targetLang: string) {
+  const withTrailingSlash = (value: string) => (
+    value === '/' || value.endsWith('/') || /\/[^/]+\.[a-z0-9]+$/i.test(value)
+      ? value
+      : `${value}/`
+  );
   // Normalize the path just in case
   const path = currentPath.startsWith('/') ? currentPath : `/${currentPath}`;
 
-  if (currentLang === targetLang) return path;
+  if (currentLang === targetLang) return withTrailingSlash(path);
 
   // THE REGEX: ^ matches the start of the string.
   // (?=\/|$) is a positive lookahead: it ensures the match is followed by either a slash or the end of the string.
@@ -20,14 +25,14 @@ export function getLanguageUrl(currentPath: string, currentLang: string, targetL
   // Case 1: Moving to default English (Strip the prefix)
   if (targetLang === defaultLang) {
     const strippedPath = path.replace(prefixRegex, '');
-    return strippedPath === '' ? '/' : strippedPath;
+    return strippedPath === '' ? '/' : withTrailingSlash(strippedPath);
   }
 
   // Case 2: Moving from default English to another language (Add the prefix)
   if (currentLang === defaultLang) {
-    return path === '/' ? `/${targetLang}` : `/${targetLang}${path}`;
+    return path === '/' ? `/${targetLang}/` : withTrailingSlash(`/${targetLang}${path}`);
   }
 
   // Case 3: Swapping between two non-default languages (e.g., /es/about -> /pt/about)
-  return path.replace(prefixRegex, `/${targetLang}`);
+  return withTrailingSlash(path.replace(prefixRegex, `/${targetLang}`));
 }

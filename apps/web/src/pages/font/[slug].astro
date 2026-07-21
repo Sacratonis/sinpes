@@ -68,14 +68,23 @@ const structuredData = buildFontPageSchema({
 });
 ---
 
-<Layout title={seoTitle} description={seoDescription} locale={defaultLang} image={heroImageBase} structuredData={structuredData}>
+<Layout
+  title={seoTitle}
+  description={seoDescription}
+  locale={defaultLang}
+  image={heroImageBase}
+  imageAlt={heroAlt}
+  imageWidth={1200}
+  imageHeight={525}
+  structuredData={structuredData}
+>
   {fontFaceCSS && <style set:html={fontFaceCSS} />}
 
   <!-- BREADCRUMB SUBNAV -->
   <div class="dl-subnav view-container">
     <a href="/" class="nav-link">&larr; {t('nav.library')}</a>
     <span class="nav-center" transition:name={`name-${font.slug}`}>{font.display_name}</span>
-    <a href={`/test/${font.slug}`} class="nav-link nav-right-link">{t('row.test')} &rarr;</a>
+    <a href={`/test/${font.slug}/`} class="nav-link nav-right-link">{t('row.test')} &rarr;</a>
   </div>
 
   <main class="view-container dl-wrapper">
@@ -97,13 +106,13 @@ const structuredData = buildFontPageSchema({
 
       <div class="mobile-primary-actions">
         <a href={font.download_zip_url || font.woff2_url} download class="mobile-action primary">{t('dl.download')} <span>&darr;</span></a>
-        <a href={`/test/${font.slug}`} class="mobile-action">{t('row.test')} <span>&rarr;</span></a>
+        <a href={`/test/${font.slug}/`} class="mobile-action">{t('row.test')} <span>&rarr;</span></a>
       </div>
 
       <!-- CINEMATIC HERO IMAGE -->
       {heroImage && (
         <div class="hero-cinema">
-          <img src={heroImage} alt={heroAlt} width="1200" height="525" loading="lazy" decoding="async" />
+          <img src={heroImage} alt={heroAlt} width="1200" height="525" loading="eager" fetchpriority="high" decoding="async" />
           <span class="hero-font-name" aria-hidden="true" style={`font-family: "${fontFamily}", 'IBM Plex Sans', sans-serif`}>
             {font.display_name}
           </span>

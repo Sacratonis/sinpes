@@ -71,7 +71,7 @@ export function buildHomePageSchema({
         isPartOf: { '@id': websiteId },
         about: {
           '@type': 'Thing',
-          name: 'Free fonts and open-source typography',
+          name: 'Free font discovery and typography',
         },
         inLanguage: locale,
         keywords: categoryKeywords.join(', '),

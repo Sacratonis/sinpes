@@ -120,7 +120,10 @@ class ArticlePublisherTests(unittest.TestCase):
         self.assertEqual(result["pending_confirmation_count"], 2)
         self.assertEqual(result["indexnow_url_count"], 8)
         self.assertEqual(hook.call_count, 1)
-        self.assertEqual(upload.call_count, 1)
+        self.assertEqual(upload.call_count, 2)
+        uploaded_keys = [call.kwargs["key"] for call in upload.call_args_list]
+        self.assertIn("build-artifacts/blog-registry.snapshot.json", uploaded_keys)
+        self.assertIn("build-artifacts/deployment.json", uploaded_keys)
         statuses = dict(self.conn.execute("SELECT id,status FROM article_queue").fetchall())
         self.assertEqual(statuses, {"article-one": "publishing", "article-two": "publishing"})
         pending = json.loads(MetaRepository(self.conn).get_value(PENDING_KEY))
@@ -147,7 +150,9 @@ class ArticlePublisherTests(unittest.TestCase):
         self.assertEqual(result["reason"], "snapshot is unchanged")
         statuses = dict(self.conn.execute("SELECT id,status FROM article_queue").fetchall())
         self.assertEqual(statuses, {"article-one": "approved", "article-two": "approved"})
-        self.assertEqual(upload.call_count, 2)
+        self.assertEqual(upload.call_count, 3)
+        uploaded_keys = [call.kwargs["key"] for call in upload.call_args_list]
+        self.assertIn("build-artifacts/deployment.json", uploaded_keys)
 
     @patch("app.services.article_publisher.upload_to_r2")
     @patch("app.services.article_publisher.export_snapshot", return_value="fonts-snapshot")
@@ -178,7 +183,9 @@ class ArticlePublisherTests(unittest.TestCase):
             json.loads(MetaRepository(self.conn).get_value(PENDING_KEY)),
             ["https://sinpes.com/blog/pre-existing/"],
         )
-        self.assertEqual(upload.call_count, 2)
+        self.assertEqual(upload.call_count, 3)
+        uploaded_keys = [call.kwargs["key"] for call in upload.call_args_list]
+        self.assertIn("build-artifacts/deployment.json", uploaded_keys)
 
     @patch("app.services.article_publisher.upload_to_r2")
     @patch(

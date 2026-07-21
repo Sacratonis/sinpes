@@ -2,19 +2,19 @@
 import Layout from '../layouts/Layout.astro';
 import { defaultLang } from '../i18n/ui';
 ---
-<Layout title="About the Archive | Sinpes" description="Learn how SINPES curates, reviews, and distributes free font families for designers, developers, editorial teams, websites, apps, and print projects." locale={defaultLang}>
+<Layout title="About the Archive | Sinpes" description="Learn how SINPES curates and distributes free font families for designers, developers, editorial teams, websites, apps, and print projects." locale={defaultLang}>
   <main class="view-container legal-page">
     <h1>About Sinpes</h1>
-    <p>Founded as a response to the fragmentation of digital type foundries, Sinpes was established to curate the world's finest open-source letterforms. Our mission goes beyond aggregation; we perform rigorous typographic auditing to ensure absolute pixel-perfection for both high-resolution digital interfaces and print editorial workflows.</p>
+    <p>Sinpes is a focused archive for free font families. The project exists to make type easier to discover, preview, test, and download for real design work across websites, apps, editorial layouts, branding, and print.</p>
     
     <h2>Our Curatorial Standards</h2>
-    <p>We recognize that typography is the foundational architecture of visual communication. Unlike automated aggregators that indiscriminately scrape font data, every typeface archived on Sinpes is subjected to a comprehensive technical review. We meticulously verify kerning tables, glyph completeness, hinting instructions, and OpenType features. Only fonts that meet our stringent criteria for production-readiness are admitted into the archive.</p>
+    <p>Every family added to the archive goes through automated ingestion checks for file integrity, family grouping, usable web formats, metadata quality, and preview rendering. When an issue is found, the font stays out of the public archive until the pipeline can process it cleanly.</p>
     
-    <h2>The Open Source Imperative</h2>
-    <p>At Sinpes, we believe that premium design tools should not be gated by prohibitive licensing fees. By archiving typefaces exclusively licensed under the SIL Open Font License (OFL), Apache 2.0, and similar permissive agreements, we aim to democratize access to exceptional typography. We ensure that independent creators, software engineers, and enterprise design studios alike have unrestricted access to world-class letterforms for commercial and personal applications.</p>
+    <h2>Free Fonts for Everyone</h2>
+    <p>Sinpes is built around a simple idea: good typography should be easy to access. We prioritize free font families and clear presentation so designers can judge each typeface quickly before downloading it.</p>
     
     <h2>Technical Infrastructure</h2>
-    <p>Our distribution pipeline is engineered for maximum performance and reliability. We provide highly optimized, web-ready WOFF2 formats tailored for modern front-end architectures, alongside pristine OTF and TTF masters for print designers. Every download is bundled with transparent licensing documentation, safeguarding your commercial projects against intellectual property infringement.</p>
+    <p>The distribution pipeline converts uploaded font families into optimized WOFF2 assets for fast previews while preserving downloadable source files for users who need the original formats. Metadata, screenshots, search data, and static snapshots are generated as part of the publishing workflow.</p>
   </main>
 </Layout>
 

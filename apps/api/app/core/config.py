@@ -83,6 +83,10 @@ class Settings(BaseSettings):
         validation_alias="INDEXNOW_KEY",
     )
     DATABASE_PATH: str = Field(default="/opt/sinpes/data/sinpes.db", validation_alias="DATABASE_PATH")
+    DATABASE_BACKUP_DIR: str = Field(
+        default="/var/backups/sinpes", validation_alias="DATABASE_BACKUP_DIR"
+    )
+    TELEGRAM_SESSION_DIR: Optional[str] = Field(default=None, validation_alias="TELEGRAM_SESSION_DIR")
     APP_ENV: str = Field(default="production")  # Default to production for safety
 
     # --- EXTERNAL APIs ---

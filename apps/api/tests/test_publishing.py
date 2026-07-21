@@ -7,6 +7,8 @@ from app.repositories.font_repo import FontRepository
 from app.repositories.meta_repo import MetaRepository
 from app.services.deployment_manager import (
     PENDING_ARTICLES_KEY,
+    PENDING_DEPLOYMENT_ID_KEY,
+    PENDING_FONTS_KEY,
     confirm_deployment_success,
     get_deployment_status,
     snapshot_hash,
@@ -39,7 +41,7 @@ class PublishingTests(unittest.TestCase):
     def tearDown(self):
         self.connection.close()
 
-    def test_drip_batch_activates_only_requested_queued_fonts(self):
+    def test_drip_batch_reserves_only_requested_queued_fonts(self):
         self.connection.executemany(
             "INSERT INTO font_registry (slug, status) VALUES (?, ?)",
             [("one", "queued"), ("two", "queued"), ("three", "vault")],
@@ -48,12 +50,13 @@ class PublishingTests(unittest.TestCase):
         self.connection.execute("UPDATE font_registry SET category = 'known'")
         self.connection.execute("INSERT INTO categories(slug) VALUES('known')")
 
-        FontRepository(self.connection).activate_queued_fonts(1)
+        slugs = FontRepository(self.connection).mark_queued_fonts_publishing(1)
 
         statuses = dict(
             self.connection.execute("SELECT slug, status FROM font_registry").fetchall()
         )
-        self.assertEqual(statuses["one"], "active")
+        self.assertEqual(slugs, ["one"])
+        self.assertEqual(statuses["one"], "publishing")
         self.assertEqual(statuses["two"], "queued")
         self.assertEqual(statuses["three"], "vault")
 
@@ -63,12 +66,38 @@ class PublishingTests(unittest.TestCase):
             "INSERT INTO font_registry(slug, status, category) VALUES('waiting', 'queued', 'new-category')"
         )
 
-        FontRepository(self.connection).activate_queued_fonts(48)
+        slugs = FontRepository(self.connection).mark_queued_fonts_publishing(48)
 
         status = self.connection.execute(
             "SELECT status FROM font_registry WHERE slug = 'waiting'"
         ).fetchone()[0]
+        self.assertEqual(slugs, [])
         self.assertEqual(status, "queued")
+
+    def test_confirmed_deployment_activates_only_reserved_fonts(self):
+        self.connection.execute("ALTER TABLE font_registry ADD COLUMN category TEXT")
+        self.connection.executemany(
+            "INSERT INTO font_registry (slug, status, category) VALUES (?, ?, ?)",
+            [
+                ("reserved", "publishing", "known"),
+                ("still-queued", "queued", "known"),
+            ],
+        )
+        repository = MetaRepository(self.connection)
+        repository.set_value("build_in_progress", "true")
+        repository.set_value("pending_snapshot_hash", "hash")
+        repository.set_value(PENDING_DEPLOYMENT_ID_KEY, "deploy-1")
+        repository.set_value(PENDING_FONTS_KEY, '["reserved"]')
+
+        confirmation = confirm_deployment_success(self.connection, deployment_id="deploy-1")
+
+        statuses = dict(
+            self.connection.execute("SELECT slug, status FROM font_registry").fetchall()
+        )
+        self.assertEqual(confirmation["status"], "ok")
+        self.assertEqual(confirmation["published_fonts"], ["reserved"])
+        self.assertEqual(statuses["reserved"], "active")
+        self.assertEqual(statuses["still-queued"], "queued")
 
     def test_build_lock_can_be_cleared(self):
         repository = MetaRepository(self.connection)
@@ -105,7 +134,7 @@ class PublishingTests(unittest.TestCase):
     def test_only_one_automatic_deployment_per_day(self):
         first = self.trigger(automatic=True)
         self.assertTrue(first.triggered)
-        confirm_deployment_success(self.connection)
+        confirm_deployment_success(self.connection, deployment_id=first.deployment_id)
 
         second = self.trigger(artifact_hash=snapshot_hash("changed"), automatic=True)
 
@@ -117,7 +146,10 @@ class PublishingTests(unittest.TestCase):
         self.assertTrue(decision.triggered)
         self.assertEqual(MetaRepository(self.connection).get_value("deployment_count_2026_07"), "1")
 
-        confirmation = confirm_deployment_success(self.connection)
+        confirmation = confirm_deployment_success(
+            self.connection,
+            deployment_id=decision.deployment_id,
+        )
 
         self.assertEqual(confirmation["status"], "ok")
         self.assertEqual(
@@ -134,7 +166,10 @@ class PublishingTests(unittest.TestCase):
             "app.services.deployment_manager.submit_pending_indexnow",
             return_value={"status": "submitted", "count": 1},
         ) as submit:
-            confirmation = confirm_deployment_success(self.connection)
+            confirmation = confirm_deployment_success(
+                self.connection,
+                deployment_id=decision.deployment_id,
+            )
 
         self.assertEqual(confirmation["indexnow"]["status"], "submitted")
         submit.assert_called_once_with(self.connection)
@@ -160,7 +195,10 @@ class PublishingTests(unittest.TestCase):
             "app.services.deployment_manager.submit_pending_indexnow",
             return_value={"status": "submitted", "count": 0},
         ):
-            confirmation = confirm_deployment_success(self.connection)
+            confirmation = confirm_deployment_success(
+                self.connection,
+                deployment_id=decision.deployment_id,
+            )
 
         self.assertEqual(confirmation["status"], "ok")
         self.assertEqual(confirmation["published_articles"][0]["slug"], "first-post")
@@ -172,6 +210,25 @@ class PublishingTests(unittest.TestCase):
 
     def test_confirmation_without_pending_deployment_is_ignored(self):
         self.assertEqual(confirm_deployment_success(self.connection)["status"], "ignored")
+
+    def test_stale_deployment_callback_is_ignored(self):
+        decision = self.trigger()
+        self.assertTrue(decision.triggered)
+
+        stale_confirmation = confirm_deployment_success(
+            self.connection,
+            deployment_id="older-build",
+        )
+
+        self.assertEqual(stale_confirmation["status"], "ignored")
+        self.assertEqual(stale_confirmation["reason"], "deployment id does not match")
+        self.assertEqual(MetaRepository(self.connection).get_value("build_in_progress"), "true")
+
+        confirmation = confirm_deployment_success(
+            self.connection,
+            deployment_id=decision.deployment_id,
+        )
+        self.assertEqual(confirmation["status"], "ok")
 
     def test_stale_build_lock_is_released(self):
         repository = MetaRepository(self.connection)

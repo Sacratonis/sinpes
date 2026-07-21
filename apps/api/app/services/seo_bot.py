@@ -7,6 +7,11 @@ from datetime import datetime, timedelta, timezone
 from telethon import TelegramClient, events
 
 from app.core.config import config
+from app.core.telegram_session import (
+    create_secure_telegram_client,
+    harden_telegram_session,
+    telegram_session_directory,
+)
 from app.db.database import get_db
 from app.seo.auditor import (
     audit_article_cannibalization,
@@ -81,6 +86,15 @@ def _format_report(report: dict) -> str:
     ))
 
 
+def create_client() -> TelegramClient:
+    return create_secure_telegram_client(
+        "sinpes_seo_bot_session",
+        config.TELEGRAM_API_ID,
+        config.TELEGRAM_API_HASH,
+        session_dir=telegram_session_directory(config.TELEGRAM_SESSION_DIR, config.DATABASE_PATH),
+    )
+
+
 def start_bot():
     if not config.seo.enabled:
         raise RuntimeError("SEO bot is disabled; set SEO_BOT_ENABLED=true after tests pass")
@@ -89,7 +103,7 @@ def start_bot():
     if not token or not admin_chat_id:
         raise RuntimeError("SEO Telegram token and private admin chat ID must be configured")
     admin_chat_id = int(admin_chat_id)
-    client = TelegramClient("sinpes_seo_bot_session", config.TELEGRAM_API_ID, config.TELEGRAM_API_HASH)
+    client = create_client()
 
     async def authorized(event) -> bool:
         allowed = is_authorized_private_chat(event.sender_id, event.chat_id, event.is_private, admin_chat_id)
@@ -183,6 +197,7 @@ def start_bot():
 
     logger.info("Starting SINPES SEO Expert Bot")
     client.start(bot_token=token)
+    harden_telegram_session(client)
     client.loop.create_task(weekly_report_loop())
     client.run_until_disconnected()
 

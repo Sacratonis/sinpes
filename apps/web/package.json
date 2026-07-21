@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
+    "prebuild": "node scripts/capture-deployment.mjs",
     "build": "astro build",
     "preview": "astro preview",
     "test:search": "node --test tests/fontSearch.test.mjs",

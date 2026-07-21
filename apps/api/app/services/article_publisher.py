@@ -8,6 +8,8 @@ from app.routers.snapshot import export_blog_snapshot, export_snapshot
 from app.services.content_integrity import ContentIntegrityError
 from app.services.deployment_manager import (
     PENDING_ARTICLES_KEY,
+    deployment_manifest,
+    new_deployment_id,
     snapshot_hash,
     trigger_deployment,
 )
@@ -162,13 +164,26 @@ def publish_approved_articles(
         font_snapshot = export_snapshot()
         _upload_blog_snapshot(blog_snapshot)
         snapshot_uploaded = True
+        artifact_hash = snapshot_hash(font_snapshot, blog_snapshot)
+        deployment_id = new_deployment_id()
+        upload_to_r2(
+            data=deployment_manifest(
+                deployment_id=deployment_id,
+                artifact_hash=artifact_hash,
+                source=source,
+            ).encode("utf-8"),
+            key="build-artifacts/deployment.json",
+            content_type="application/json",
+            cache_control="no-cache",
+        )
         with get_db() as conn:
             decision = trigger_deployment(
                 conn,
-                artifact_hash=snapshot_hash(font_snapshot, blog_snapshot),
+                artifact_hash=artifact_hash,
                 source=source,
                 indexnow_urls=changed_urls,
                 pending_article_ids=article_ids,
+                deployment_id=deployment_id,
                 automatic=automatic,
             )
         if not decision.triggered:

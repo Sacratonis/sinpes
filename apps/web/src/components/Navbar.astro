@@ -8,6 +8,7 @@ interface Props { locale?: keyof typeof languages; }
 const { locale = defaultLang } = Astro.props;
 const t = useTranslations(locale);
 const basePath = locale === defaultLang ? '' : `/${locale}`;
+const homeHref = basePath ? `${basePath}/` : '/';
 const currentPath = Astro.url.pathname;
 const localizedPath = locale === defaultLang ? currentPath : currentPath.replace(new RegExp(`^/${locale}`), '') || '/';
 const isLibrary = localizedPath === '/' || /^\/(font|test|category)(\/|$)/.test(localizedPath);
@@ -17,13 +18,13 @@ const isAbout = localizedPath === '/about' || localizedPath === '/about/';
 
 <header class="navbar" id="mainNavbar">
   <div class="nav-left">
-    <a href={basePath || '/'} class="logo">SINPES</a>
+    <a href={homeHref} class="logo">SINPES</a>
   </div>
 
   <div class="nav-center">
-    <a href={basePath || '/'} class:list={{ active: isLibrary }} aria-current={isLibrary ? 'page' : undefined}>{t('nav.library') || 'Library'}</a>
-    <a href={`${basePath}/blog`} class:list={{ active: isBlog }} aria-current={isBlog ? 'page' : undefined}>{t('nav.blog') || 'Blog'}</a>
-    <a href={`${basePath}/about`} class:list={{ active: isAbout }} aria-current={isAbout ? 'page' : undefined}>{t('nav.about') || 'About'}</a>
+    <a href={homeHref} class:list={{ active: isLibrary }} aria-current={isLibrary ? 'page' : undefined}>{t('nav.library') || 'Library'}</a>
+    <a href={`${basePath}/blog/`} class:list={{ active: isBlog }} aria-current={isBlog ? 'page' : undefined}>{t('nav.blog') || 'Blog'}</a>
+    <a href={`${basePath}/about/`} class:list={{ active: isAbout }} aria-current={isAbout ? 'page' : undefined}>{t('nav.about') || 'About'}</a>
   </div>
 
   <div class="nav-right">
@@ -51,10 +52,10 @@ const isAbout = localizedPath === '/about' || localizedPath === '/about/';
   <!-- MOBILE FULL-SCREEN DRAWER -->
   <div class="mobile-drawer" id="mobileDrawer" inert>
     <nav class="drawer-links">
-      <a href={basePath || '/'}>{t('nav.library') || 'Library'}</a>
-      <a href={`${basePath}/blog`}>{t('nav.blog') || 'Blog'}</a>
-      <a href={`${basePath}/about`}>{t('nav.about') || 'About'}</a>
-      <a href={`${basePath}/contact`}>{t('nav.contact') || 'Contact'}</a>
+      <a href={homeHref}>{t('nav.library') || 'Library'}</a>
+      <a href={`${basePath}/blog/`}>{t('nav.blog') || 'Blog'}</a>
+      <a href={`${basePath}/about/`}>{t('nav.about') || 'About'}</a>
+      <a href={`${basePath}/contact/`}>{t('nav.contact') || 'Contact'}</a>
     </nav>
     <div class="drawer-utils">
       <SearchBar locale={locale} />

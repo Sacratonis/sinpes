@@ -7,6 +7,7 @@ import json
 import sqlite3
 import time
 import urllib.request
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -16,6 +17,8 @@ from app.services.indexnow import queue_indexnow_urls, submit_pending_indexnow
 
 
 PENDING_ARTICLES_KEY = "pending_article_publication_ids"
+PENDING_FONTS_KEY = "pending_font_publication_slugs"
+PENDING_DEPLOYMENT_ID_KEY = "pending_deployment_id"
 
 
 @dataclass(frozen=True)
@@ -23,6 +26,23 @@ class DeploymentDecision:
     triggered: bool
     reason: str
     artifact_hash: str
+    deployment_id: str = ""
+
+
+def new_deployment_id() -> str:
+    return uuid.uuid4().hex
+
+
+def deployment_manifest(*, deployment_id: str, artifact_hash: str, source: str) -> str:
+    return json.dumps(
+        {
+            "deployment_id": deployment_id,
+            "artifact_hash": artifact_hash,
+            "source": source,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        },
+        separators=(",", ":"),
+    )
 
 
 def snapshot_hash(*snapshots: str) -> str:
@@ -60,6 +80,7 @@ def _clear_stale_build_lock(meta: MetaRepository, now: datetime) -> bool:
         return False
     meta.set_value("build_in_progress", "false")
     meta.set_value("pending_snapshot_hash", "")
+    meta.set_value(PENDING_DEPLOYMENT_ID_KEY, "")
     meta.set_value("last_build_error", "Cloudflare build confirmation timed out")
     try:
         pending_ids = json.loads(meta.get_value(PENDING_ARTICLES_KEY) or "[]")
@@ -75,6 +96,18 @@ def _clear_stale_build_lock(meta: MetaRepository, now: datetime) -> bool:
         # Older/test schemas may not have the article queue; the build lock is
         # still safely cleared and the next real build will reconcile content.
         meta.set_value(PENDING_ARTICLES_KEY, "[]")
+    try:
+        pending_fonts = json.loads(meta.get_value(PENDING_FONTS_KEY) or "[]")
+        if pending_fonts:
+            placeholders = ",".join("?" for _ in pending_fonts)
+            meta.conn.execute(
+                f"UPDATE font_registry SET status='queued' "
+                f"WHERE slug IN ({placeholders}) AND status='publishing'",
+                pending_fonts,
+            )
+        meta.set_value(PENDING_FONTS_KEY, "[]")
+    except (sqlite3.OperationalError, TypeError, json.JSONDecodeError):
+        meta.set_value(PENDING_FONTS_KEY, "[]")
     meta.conn.commit()
     return True
 
@@ -103,6 +136,8 @@ def trigger_deployment(
     source: str,
     indexnow_urls: list[str] | None = None,
     pending_article_ids: list[str] | None = None,
+    pending_font_slugs: list[str] | None = None,
+    deployment_id: str | None = None,
     force: bool = False,
     automatic: bool = False,
     now: datetime | None = None,
@@ -111,40 +146,44 @@ def trigger_deployment(
     meta = MetaRepository(conn)
     now = now or datetime.now(timezone.utc)
     timestamp = now.timestamp()
+    deployment_id = deployment_id or new_deployment_id()
     _clear_stale_build_lock(meta, now)
 
     if not config.CF_PAGES_DEPLOY_HOOK_URL:
-        return DeploymentDecision(False, "Cloudflare deploy hook is not configured", artifact_hash)
+        return DeploymentDecision(False, "Cloudflare deploy hook is not configured", artifact_hash, deployment_id)
 
     if not force and artifact_hash == meta.get_value("last_successful_snapshot_hash"):
-        return DeploymentDecision(False, "snapshot is unchanged", artifact_hash)
+        return DeploymentDecision(False, "snapshot is unchanged", artifact_hash, deployment_id)
 
     last_triggered = _as_float(meta.get_value("last_build_triggered_at"))
     build_is_recent = last_triggered and timestamp - last_triggered < config.DEPLOY_STALE_LOCK_SECONDS
     if not force and meta.get_value("build_in_progress") == "true" and build_is_recent:
-        return DeploymentDecision(False, "a deployment is already running", artifact_hash)
+        return DeploymentDecision(False, "a deployment is already running", artifact_hash, deployment_id)
 
     month_key = _month_key(now)
     monthly_count = _as_int(meta.get_value(month_key))
     if not force and monthly_count >= config.DEPLOY_MONTHLY_LIMIT:
-        return DeploymentDecision(False, "monthly deployment safety limit reached", artifact_hash)
+        return DeploymentDecision(False, "monthly deployment safety limit reached", artifact_hash, deployment_id)
 
     if not force and automatic:
         automatic_date = meta.get_value("last_automatic_deploy_date")
         if automatic_date == now.date().isoformat():
-            return DeploymentDecision(False, "automatic deployment already used today", artifact_hash)
+            return DeploymentDecision(False, "automatic deployment already used today", artifact_hash, deployment_id)
 
     if not force and not automatic and last_triggered:
         if timestamp - last_triggered < config.DEPLOY_MANUAL_COOLDOWN_SECONDS:
-            return DeploymentDecision(False, "manual deployment cooldown is active", artifact_hash)
+            return DeploymentDecision(False, "manual deployment cooldown is active", artifact_hash, deployment_id)
 
     meta.set_value("build_in_progress", "true")
     meta.set_value("last_build_triggered_at", str(timestamp))
     meta.set_value("last_build_error", "")
     meta.set_value("last_deployment_source", source)
     meta.set_value("pending_snapshot_hash", artifact_hash)
+    meta.set_value(PENDING_DEPLOYMENT_ID_KEY, deployment_id)
     if pending_article_ids:
         meta.set_value(PENDING_ARTICLES_KEY, json.dumps(pending_article_ids))
+    if pending_font_slugs:
+        meta.set_value(PENDING_FONTS_KEY, json.dumps(pending_font_slugs))
     if indexnow_urls:
         queue_indexnow_urls(conn, indexnow_urls)
     conn.commit()
@@ -158,7 +197,9 @@ def trigger_deployment(
         meta.set_value("build_in_progress", "false")
         meta.set_value("last_build_error", str(exc))
         meta.set_value("pending_snapshot_hash", "")
+        meta.set_value(PENDING_DEPLOYMENT_ID_KEY, "")
         meta.set_value(PENDING_ARTICLES_KEY, "[]")
+        meta.set_value(PENDING_FONTS_KEY, "[]")
         conn.commit()
         raise
 
@@ -166,10 +207,10 @@ def trigger_deployment(
     if automatic:
         meta.set_value("last_automatic_deploy_date", now.date().isoformat())
     conn.commit()
-    return DeploymentDecision(True, "deployment triggered", artifact_hash)
+    return DeploymentDecision(True, "deployment triggered", artifact_hash, deployment_id)
 
 
-def confirm_deployment_success(conn) -> dict:
+def confirm_deployment_success(conn, deployment_id: str | None = None) -> dict:
     """Confirm only a deployment that the application currently expects."""
     meta = MetaRepository(conn)
     if meta.get_value("build_in_progress") != "true":
@@ -178,6 +219,11 @@ def confirm_deployment_success(conn) -> dict:
     pending_hash = meta.get_value("pending_snapshot_hash")
     if not pending_hash:
         return {"status": "ignored", "reason": "deployment has no pending snapshot hash"}
+    expected_deployment_id = meta.get_value(PENDING_DEPLOYMENT_ID_KEY)
+    if not expected_deployment_id:
+        return {"status": "ignored", "reason": "deployment has no pending deployment id"}
+    if deployment_id != expected_deployment_id:
+        return {"status": "ignored", "reason": "deployment id does not match"}
 
     try:
         pending_ids = json.loads(meta.get_value(PENDING_ARTICLES_KEY) or "[]")
@@ -185,6 +231,10 @@ def confirm_deployment_success(conn) -> dict:
         pending_ids = []
     published_at = datetime.now(timezone.utc).isoformat()
     published_articles = []
+    try:
+        pending_fonts = json.loads(meta.get_value(PENDING_FONTS_KEY) or "[]")
+    except (TypeError, json.JSONDecodeError):
+        pending_fonts = []
     if pending_ids:
         placeholders = ",".join("?" for _ in pending_ids)
         try:
@@ -202,9 +252,28 @@ def confirm_deployment_success(conn) -> dict:
         except sqlite3.OperationalError:
             published_articles = []
     meta.set_value(PENDING_ARTICLES_KEY, "[]")
+    published_fonts = []
+    if pending_fonts:
+        placeholders = ",".join("?" for _ in pending_fonts)
+        try:
+            rows = conn.execute(
+                f"SELECT slug FROM font_registry "
+                f"WHERE slug IN ({placeholders}) AND status='publishing'",
+                pending_fonts,
+            ).fetchall()
+            conn.execute(
+                f"UPDATE font_registry SET status='active' "
+                f"WHERE slug IN ({placeholders}) AND status='publishing'",
+                pending_fonts,
+            )
+            published_fonts = [str(row["slug"]) for row in rows]
+        except sqlite3.OperationalError:
+            published_fonts = []
+    meta.set_value(PENDING_FONTS_KEY, "[]")
     meta.set_value("last_successful_build_at", str(time.time()))
     meta.set_value("last_successful_snapshot_hash", pending_hash)
     meta.set_value("pending_snapshot_hash", "")
+    meta.set_value(PENDING_DEPLOYMENT_ID_KEY, "")
     meta.set_value("build_in_progress", "false")
     meta.set_value("last_build_error", "")
     conn.commit()
@@ -214,4 +283,5 @@ def confirm_deployment_success(conn) -> dict:
         "snapshot_hash": pending_hash,
         "indexnow": indexnow,
         "published_articles": published_articles,
+        "published_fonts": published_fonts,
     }

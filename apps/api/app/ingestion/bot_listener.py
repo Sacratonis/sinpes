@@ -9,6 +9,11 @@ from pydantic import ValidationError
 from telethon import TelegramClient, events
 
 from app.core.config import config
+from app.core.telegram_session import (
+    create_secure_telegram_client,
+    harden_telegram_session,
+    telegram_session_directory,
+)
 from app.db.database import get_db
 from app.ingestion.channel_listener import find_mergeable_family_uploads, queue_incoming_upload
 from app.ingestion.metadata_generator import extract_font_facts, generate_ingestion_payload
@@ -19,6 +24,37 @@ from app.services.telegram_notify import send_telegram_alert
 logger = logging.getLogger("sinpes.telegram_listener")
 DOWNLOAD_DIR = os.getenv("TELEGRAM_DOWNLOAD_DIR", "/tmp/sinpes_uploads")
 FAMILY_COLLECTION_WINDOW_SECONDS = 15
+SAFE_FALLBACK_CATEGORY = "uncategorized"
+
+
+def decline_pending_category(connection, category_id: int) -> tuple[str, int]:
+    """Resolve a rejected category without deleting or hiding any font."""
+    from app.ingestion.category_resolver import get_category_slug
+    from app.repositories.category_repo import CategoryRepository
+
+    repo = CategoryRepository(connection)
+    pending = repo.get_unresolved_pending_category(category_id)
+    if not pending:
+        raise LookupError(f"Pending category #{category_id} does not exist or is already resolved.")
+
+    category_name = pending.name
+    declined_slug = get_category_slug(category_name)
+    connection.execute(
+        "INSERT OR IGNORE INTO categories(slug, display_name) VALUES(?, ?)",
+        (SAFE_FALLBACK_CATEGORY, "Uncategorized"),
+    )
+    cursor = connection.execute(
+        "UPDATE font_registry SET category = ? WHERE category = ?",
+        (SAFE_FALLBACK_CATEGORY, declined_slug),
+    )
+    connection.execute(
+        "INSERT INTO meta(key, value) VALUES(?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (f"declined_category:{declined_slug}", category_name),
+    )
+    repo.resolve_pending_category(category_id)
+    connection.commit()
+    return category_name, cursor.rowcount
 
 
 def get_family_root(filename: str) -> str:
@@ -44,10 +80,11 @@ def _document_filename(message) -> str:
 
 
 def create_client() -> TelegramClient:
-    return TelegramClient(
+    return create_secure_telegram_client(
         "sinpes_bot_session",
         int(config.TELEGRAM_API_ID),
         config.TELEGRAM_API_HASH,
+        session_dir=telegram_session_directory(config.TELEGRAM_SESSION_DIR, config.DATABASE_PATH),
     )
 
 
@@ -353,32 +390,16 @@ def register_handlers(client: TelegramClient) -> None:
     async def handle_category_decline(event):
         if not await require_channel_admin(event):
             return
-        from app.ingestion.category_resolver import get_category_slug
-
-        from app.repositories.category_repo import CategoryRepository
         category_id = int(event.pattern_match.group(1))
         with get_db() as connection:
-            repo = CategoryRepository(connection)
-            pending = repo.get_unresolved_pending_category(category_id)
-            if not pending:
-                await event.reply(f"Pending category #{category_id} does not exist or is already resolved.")
+            try:
+                category_name, reassigned_count = decline_pending_category(connection, category_id)
+            except LookupError as exc:
+                await event.reply(str(exc))
                 return
-            category_name = pending.name
-            slug = get_category_slug(category_name)
-            repo.resolve_pending_category(category_id)
-            connection.execute(
-                "INSERT INTO meta(key, value) VALUES(?, ?) "
-                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                (f"declined_category:{slug}", category_name),
-            )
-            connection.execute(
-                "UPDATE font_registry SET status = 'removed' "
-                "WHERE category = ? AND status IN ('vault', 'queued')",
-                (slug,),
-            )
-            connection.commit()
         await event.reply(
-            f"❌ Category #{category_id} declined: {category_name}. Correct the JSON before uploading again."
+            f"✅ Category #{category_id} declined: {category_name}. "
+            f"{reassigned_count} font(s) were preserved and moved to Uncategorized."
         )
 
     @client.on(events.NewMessage(func=lambda event: event.is_private, pattern=r"^/hitlist$"))
@@ -573,6 +594,7 @@ def start_listener() -> None:
     register_handlers(client)
     logger.info("Starting SINPES Telegram album listener")
     client.start(bot_token=config.oracle.telegram_bot_token)
+    harden_telegram_session(client)
     client.run_until_disconnected()
 
 

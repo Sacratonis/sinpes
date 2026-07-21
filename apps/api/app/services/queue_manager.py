@@ -18,7 +18,7 @@ from app.services.db_backup import backup_database
 # --- ORCHESTRATOR IMPORTS ---
 from app.ingestion.media_processor import HeroImageGenerationError, process_hero_image
 from app.ingestion.font_converter import generate_woff2, resolve_display_name
-from app.ingestion.storage_archive import upload_to_r2
+from app.ingestion.storage_archive import delete_r2_objects, upload_to_r2
 from app.ingestion.bouncer import check_editorial_quality
 from app.ingestion.category_resolver import resolve_category, resolve_expired_pending_categories
 from app.services.telegram_notify import send_telegram_alert
@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 class DuplicateFontUpload(RuntimeError):
     """An already-saved family should be skipped, not sent to the dead-letter queue."""
+
+
+class RetryableFontFamilyError(RuntimeError):
+    """No partial family was saved; the complete upload can be retried safely."""
 
 
 def detect_variable_font(font_obj: TTFont) -> bool:
@@ -147,28 +151,51 @@ def process_font_upload(next_item: dict):
     with get_db() as _conn_cat:
         category = resolve_category(_conn_cat, raw_category, flagged_as_new_category, send_telegram_alert)
 
-    seo_image_url = None
-    variants_list = []
-    is_demo = False  # Default; overridden by resolve_display_name if font loads cleanly
-    is_variable = False
-
-    def r2_upload_callback(**kwargs):
-        try:
-            return upload_to_r2(**kwargs)
-        except Exception as e:
-            logger.error(f"ORCHESTRATOR: R2 Upload failed: {e}")
-            raise e
-
-    # 🌟 FIX 5: Load primary font ONCE for metadata (Saves massive I/O) 🌟
+    # Preflight the complete family before generating a hero or writing to R2.
+    prepared_variants = []
     display_name = slug.replace('_', ' ').title()
-    primary_font_obj = None
-    if primary_font_path and os.path.exists(primary_font_path):
-        try:
-            primary_font_obj = TTFont(primary_font_path)
-            display_name, is_demo = resolve_display_name(primary_font_obj, slug)
-            is_variable = detect_variable_font(primary_font_obj)
-        except Exception as e:
-            logger.warning(f"ORCHESTRATOR: Could not extract display name from primary font: {e}")
+    is_demo = False
+    is_variable = False
+    try:
+        for index, path in enumerate(font_paths):
+            if not os.path.isfile(path):
+                raise FileNotFoundError(f"Missing family member: {path}")
+            font_obj = TTFont(path)
+            try:
+                if index == 0:
+                    display_name, is_demo = resolve_display_name(font_obj, slug)
+                variant_is_variable = detect_variable_font(font_obj)
+                is_variable = is_variable or variant_is_variable
+                weight_class = resolve_variant_weight(font_obj, path)
+                style = "italic" if "italic" in os.path.basename(path).lower() else "normal"
+                prepared_variants.append(
+                    {
+                        "path": path,
+                        "bytes": generate_woff2(font_obj),
+                        "weight": weight_class,
+                        "style": style,
+                        "filename": os.path.basename(path),
+                        "is_variable": variant_is_variable,
+                    }
+                )
+            finally:
+                font_obj.close()
+    except Exception as exc:
+        raise RetryableFontFamilyError(f"Family preflight failed for '{slug}': {exc}") from exc
+
+    if len(prepared_variants) != len(font_paths):
+        raise RetryableFontFamilyError(
+            f"Family preflight produced {len(prepared_variants)}/{len(font_paths)} variants for '{slug}'"
+        )
+
+    uploaded_keys: list[str] = []
+    database_saved = False
+
+    def tracked_upload(**kwargs):
+        key = kwargs["key"]
+        url = upload_to_r2(**kwargs)
+        uploaded_keys.append(key)
+        return url
 
     try:
         with get_db() as image_conn:
@@ -179,147 +206,110 @@ def process_font_upload(next_item: dict):
                 ).fetchall()
             ]
         seo_image_url = process_hero_image(
-            slug=slug, 
-            display_name=display_name, 
-            category=category, 
-            use_cases=use_cases, 
-            keyword_phrases=keyword_phrases, 
-            upload_callback=r2_upload_callback,
+            slug=slug,
+            display_name=display_name,
+            category=category,
+            use_cases=use_cases,
+            keyword_phrases=keyword_phrases,
+            upload_callback=tracked_upload,
             font_path=primary_font_path,
             existing_image_urls=existing_image_urls,
-        ) 
-        logger.info(f"ORCHESTRATOR: Hero image processed! URL: {seo_image_url}")
-    except HeroImageGenerationError:
-        raise
-    except Exception as e:
-        logger.error(f"ORCHESTRATOR: Error processing image: {e}")
-        traceback.print_exc()
-        raise HeroImageGenerationError(
-            f"Hero image processing failed for '{slug}': {e}"
-        ) from e
-
-    if not seo_image_url:
-        raise HeroImageGenerationError(
-            f"Hero image generation returned no image for '{slug}'. Font not saved."
         )
-
-    # 3. Loop through ALL font weights
-    for path in font_paths:
-        if not os.path.exists(path):
-            continue
-            
-        try:
-            # Reuse primary font object if it's the same file, otherwise load it
-            if path == primary_font_path and primary_font_obj:
-                font_obj = primary_font_obj
-            else:
-                font_obj = TTFont(path)
-
-            variant_is_variable = detect_variable_font(font_obj)
-            is_variable = is_variable or variant_is_variable
-                
-            woff2_bytes = generate_woff2(font_obj)
-            
-            weight_class = resolve_variant_weight(font_obj, path)
-            style = "normal"
-                
-            if 'italic' in os.path.basename(path).lower():
-                style = "italic"
-
-            font_key = build_font_object_key(slug, path, weight_class, style)
-            font_url = upload_to_r2(
-                data=woff2_bytes, 
-                key=font_key, 
-                content_type="font/woff2", 
-                cache_control="max-age=31536000"
+        if not seo_image_url:
+            raise HeroImageGenerationError(
+                f"Hero image generation returned no image for '{slug}'. Font not saved."
             )
-            
-            logger.info(f"ORCHESTRATOR: Uploaded weight {weight_class} ({style}) -> {font_url}")
-            
-            variants_list.append({
-                "weight": weight_class,
-                "style": style,
-                "url": font_url,
-                "filename": os.path.basename(path),
-                "is_variable": variant_is_variable,
-            })
-            
-            # Close font object if we loaded a secondary weight
-            if path != primary_font_path:
-                font_obj.close()
-                
-        except Exception as e:
-            logger.error(f"ORCHESTRATOR: Error processing weight {path}: {e}")
-            traceback.print_exc()
 
-    if primary_font_obj:
-        primary_font_obj.close()
+        variants_list = []
+        for prepared in prepared_variants:
+            font_key = build_font_object_key(
+                slug, prepared["path"], prepared["weight"], prepared["style"]
+            )
+            font_url = tracked_upload(
+                data=prepared["bytes"],
+                key=font_key,
+                content_type="font/woff2",
+                cache_control="max-age=31536000",
+            )
+            variants_list.append(
+                {
+                    "weight": prepared["weight"],
+                    "style": prepared["style"],
+                    "url": font_url,
+                    "filename": prepared["filename"],
+                    "is_variable": prepared["is_variable"],
+                }
+            )
 
-    # 🌟 FIX 4: zip_size_kb defaults to None instead of 0 🌟
-    download_zip_url = None
-    zip_size_kb = None 
-    try:
         zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for path in font_paths:
-                if os.path.exists(path):
-                    zip_file.write(path, os.path.basename(path))
-            
-            readme_text = f"SINPES Font Archive\n\nFamily: {slug.replace('_', ' ').title()}\nFiles included: {len(font_paths)}\n\nThank you for supporting open-source typography."
-            zip_file.writestr("README.txt", readme_text)
-
+                zip_file.write(path, os.path.basename(path))
+            zip_file.writestr(
+                "README.txt",
+                f"SINPES Font Archive\n\nFamily: {slug.replace('_', ' ').title()}\n"
+                f"Files included: {len(font_paths)}\n\n"
+                "Thank you for supporting open-source typography.",
+            )
         zip_bytes = zip_buffer.getvalue()
-        zip_size_kb = len(zip_bytes) // 1024 
-        zip_key = f"downloads/{slug}.zip"
-        download_zip_url = upload_to_r2(
-            data=zip_bytes, key=zip_key, content_type="application/zip", cache_control="max-age=31536000"
+        zip_size_kb = len(zip_bytes) // 1024
+        download_zip_url = tracked_upload(
+            data=zip_bytes,
+            key=f"downloads/{slug}.zip",
+            content_type="application/zip",
+            cache_control="max-age=31536000",
         )
-        logger.info(f"ORCHESTRATOR: Master ZIP uploaded -> {download_zip_url} ({zip_size_kb} KB)")
-    except Exception as e:
-        logger.error(f"ORCHESTRATOR: Failed to create/upload ZIP: {e}")
-        traceback.print_exc()
 
-    if not download_zip_url:
-        raise RuntimeError(f"ORCHESTRATOR: ZIP upload failed for '{slug}' — font would go live with a broken download link. Font not saved.")
+        with get_db() as conn:
+            from app.repositories.font_repo import FontRepository
+            from app.schemas.font import FontRegistry, FontTranslation
 
-    # 4. SAVE TO DATABASE (🌟 FIX 2: Context Manager prevents leaks 🌟)
-    if variants_list:
-        try:
-            with get_db() as conn:
-                from app.repositories.font_repo import FontRepository
-                from app.schemas.font import FontRegistry, FontTranslation
-                
-                f_repo = FontRepository(conn)
-                now_iso = datetime.now(timezone.utc).isoformat()
-                
-                use_cases_str = json.dumps(use_cases) if isinstance(use_cases, list) else str(use_cases)
-                variants_str = json.dumps(variants_list) 
-                weights_str = json.dumps(list(set([v['weight'] for v in variants_list]))) 
-
-                f_repo.insert_font(FontRegistry(
-                    slug=slug, display_name=display_name, is_demo=is_demo, is_variable=is_variable, category=category,
-                    variants=variants_str, weights=weights_str, woff2_url=select_primary_variant_url(variants_list),
-                    file_format='zip', file_size_kb=zip_size_kb or 0, use_cases=use_cases_str,
-                    status='queued', file_hash=file_hash, last_updated=now_iso,
-                    download_zip_url=download_zip_url, embedded_family_name=None
-                ))
-                
-                descriptions = {locale: description, **payload.translations}
-                for translation_locale, translation_description in descriptions.items():
-                    f_repo.insert_translation(FontTranslation(
+            f_repo = FontRepository(conn)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            f_repo.insert_font(
+                FontRegistry(
+                    slug=slug,
+                    display_name=display_name,
+                    is_demo=is_demo,
+                    is_variable=is_variable,
+                    category=category,
+                    variants=json.dumps(variants_list),
+                    weights=json.dumps(sorted({v["weight"] for v in variants_list})),
+                    woff2_url=select_primary_variant_url(variants_list),
+                    file_format="zip",
+                    file_size_kb=zip_size_kb,
+                    use_cases=json.dumps(use_cases) if isinstance(use_cases, list) else str(use_cases),
+                    status="queued",
+                    file_hash=file_hash,
+                    last_updated=now_iso,
+                    download_zip_url=download_zip_url,
+                    embedded_family_name=None,
+                )
+            )
+            for translation_locale, translation_description in {
+                locale: description,
+                **payload.translations,
+            }.items():
+                f_repo.insert_translation(
+                    FontTranslation(
                         slug=slug,
                         locale=translation_locale,
                         description=translation_description,
                         seo_image_url=seo_image_url,
-                    ))
-                
-                conn.commit()
-                logger.info(f"ORCHESTRATOR: Saved family '{slug}' ({len(variants_list)} weights) to database!")
-                
-        except Exception as e:
-            logger.error(f"ORCHESTRATOR: Database insert failed: {e}")
-            traceback.print_exc()
-            raise # Re-raise so the queue manager catches it and retries!
+                    )
+                )
+            conn.commit()
+            database_saved = True
+        logger.info("ORCHESTRATOR: Saved complete family '%s' (%s variants)", slug, len(variants_list))
+    except Exception as exc:
+        if not database_saved and uploaded_keys:
+            try:
+                delete_r2_objects(uploaded_keys)
+            except Exception as cleanup_exc:
+                logger.error("Could not clean R2 objects from failed attempt: %s", cleanup_exc)
+        if isinstance(exc, HeroImageGenerationError):
+            raise
+        raise RetryableFontFamilyError(f"Complete family upload failed for '{slug}': {exc}") from exc
 
 def release_next_from_queue():
     """Process exactly one family; the scheduler calls this continuously."""
@@ -368,6 +358,21 @@ def release_next_from_queue():
                 f"⏳ Queue item #{item_id}: hero services are unavailable. "
                 f"Automatic retry scheduled in {delay_seconds // 60} minutes."
             )
+        return False
+    except RetryableFontFamilyError as e:
+        error_msg = str(e)
+        delay_seconds = min(300 * (2 ** min(attempts - 1, 5)), 21600)
+        logger.warning(
+            "Complete family processing failed for queue item %s; retrying in %s seconds: %s",
+            item_id,
+            delay_seconds,
+            error_msg,
+        )
+        with get_db() as conn:
+            from app.repositories.queue_repo import QueueRepository
+
+            QueueRepository(conn).defer_item(item_id, error_msg, delay_seconds)
+            conn.commit()
         return False
     except Exception as e:
         error_msg = str(e)

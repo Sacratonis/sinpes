@@ -6,6 +6,11 @@ import logging
 from telethon import Button, TelegramClient, events
 
 from app.core.config import config
+from app.core.telegram_session import (
+    create_secure_telegram_client,
+    harden_telegram_session,
+    telegram_session_directory,
+)
 from app.db.database import get_db
 from app.services.article_image_service import finalize_article_image
 from app.services.content_integrity import ContentIntegrityError
@@ -36,13 +41,22 @@ def is_owner_private_chat(sender_id, chat_id, is_private: bool, owner_id) -> boo
         return False
 
 
+def create_client() -> TelegramClient:
+    return create_secure_telegram_client(
+        "sinpes_writer_bot_session",
+        config.TELEGRAM_API_ID,
+        config.TELEGRAM_API_HASH,
+        session_dir=telegram_session_directory(config.TELEGRAM_SESSION_DIR, config.DATABASE_PATH),
+    )
+
+
 def start_bot():
     token = config.writer.telegram_bot_token
     review_chat_id = config.writer.telegram_review_channel_id
     if not token or not review_chat_id:
         raise RuntimeError("Writer Telegram token and review chat ID must be configured")
     review_chat_id = int(review_chat_id)
-    client = TelegramClient("sinpes_writer_bot_session", config.TELEGRAM_API_ID, config.TELEGRAM_API_HASH)
+    client = create_client()
 
     async def authorized(event) -> bool:
         try:
@@ -291,6 +305,14 @@ def start_bot():
 
         try:
             result = await asyncio.get_running_loop().run_in_executor(None, run)
+            if result.get("pending_confirmation_count"):
+                await event.reply(
+                    f"✅ {result['pending_confirmation_count']} article(s) queued for deployment confirmation.\n"
+                    f"IndexNow URLs queued: {result['indexnow_url_count']}\n"
+                    f"Slugs: {', '.join(result['slugs'])}\n"
+                    "Use /publish_status to check Cloudflare confirmation."
+                )
+                return
             if not result["published_count"]:
                 await event.reply(
                     f"No articles were published. {result['reason']}"
@@ -359,6 +381,7 @@ def start_bot():
 
     logger.info("Starting SINPES Writer Bot")
     client.start(bot_token=token)
+    harden_telegram_session(client)
     client.run_until_disconnected()
 
 
