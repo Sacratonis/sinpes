@@ -74,6 +74,9 @@ for (const file of files) {
   if (!html.includes('<meta name="msvalidate.01" content="451E1BD0AE8253F7665FC14EBC0D57B6"')) {
     failures.push(`${relative}: missing Bing Webmaster verification`);
   }
+  if (!html.includes('<meta name="yandex-verification" content="1e504b07f03d7f62"')) {
+    failures.push(`${relative}: missing Yandex Webmaster verification`);
+  }
   if (description.length > 160) failures.push(`${relative}: meta description is ${description.length} characters`);
   if (!canonical) failures.push(`${relative}: missing canonical URL`);
   if (!is404 && canonical && !canonical.endsWith('/')) failures.push(`${relative}: canonical URL must end with /`);
@@ -90,11 +93,15 @@ for (const file of files) {
         const data = JSON.parse(jsonLd);
         const graph = Array.isArray(data?.['@graph']) ? data['@graph'] : [];
         if (isHome) {
-          const requiredTypes = ['Organization', 'WebSite', 'CollectionPage', 'ItemList'];
+          const requiredTypes = ['Organization', 'WebSite', 'SiteNavigationElement', 'CollectionPage', 'ItemList'];
           for (const type of requiredTypes) {
             if (!graph.some(item => item?.['@type'] === type)) {
               failures.push(`${relative}: homepage schema missing ${type}`);
             }
+          }
+          const navigation = graph.find(item => item?.['@type'] === 'SiteNavigationElement');
+          if (!Array.isArray(navigation?.hasPart) || navigation.hasPart.length < 4) {
+            failures.push(`${relative}: homepage SiteNavigationElement has too few navigation entries`);
           }
           const itemList = graph.find(item => item?.['@type'] === 'ItemList');
           if (!Array.isArray(itemList?.itemListElement)) {
