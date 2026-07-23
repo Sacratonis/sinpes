@@ -24,7 +24,18 @@ export function buildHomePageSchema({
   const websiteId = `${site}#website`;
   const pageId = `${page}#webpage`;
   const listId = `${page}#font-list`;
+  const navigationId = `${site}#site-navigation`;
   const categoryKeywords = [...new Set(categories.filter(Boolean))];
+  const navigationItems = [
+    { name: 'Font Library', url: `${site.replace(/\/$/, '')}${prefix || ''}/` },
+    { name: 'Blog', url: `${site.replace(/\/$/, '')}${prefix}/blog/` },
+    { name: 'About', url: `${site.replace(/\/$/, '')}${prefix}/about/` },
+    { name: 'Contact', url: `${site.replace(/\/$/, '')}${prefix}/contact/` },
+    ...categoryKeywords.slice(0, 8).map((category) => ({
+      name: `${category} Fonts`,
+      url: `${site.replace(/\/$/, '')}${prefix}/category/${category.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}/`,
+    })),
+  ];
 
   const itemListElement = fonts.map((font, index) => ({
     '@type': 'ListItem',
@@ -50,6 +61,7 @@ export function buildHomePageSchema({
         '@type': 'WebSite',
         '@id': websiteId,
         name: 'SINPES',
+        alternateName: ['Sinpes Fonts', 'Free Fonts for Everyone'],
         url: site,
         publisher: { '@id': organizationId },
         inLanguage: supportedLocales,
@@ -63,6 +75,17 @@ export function buildHomePageSchema({
         },
       },
       {
+        '@type': 'SiteNavigationElement',
+        '@id': navigationId,
+        name: 'SINPES primary navigation',
+        hasPart: navigationItems.map((item, index) => ({
+          '@type': 'WebPage',
+          position: index + 1,
+          name: item.name,
+          url: item.url,
+        })),
+      },
+      {
         '@type': 'CollectionPage',
         '@id': pageId,
         name: title,
@@ -71,7 +94,7 @@ export function buildHomePageSchema({
         isPartOf: { '@id': websiteId },
         about: {
           '@type': 'Thing',
-          name: 'Free font discovery and typography',
+          name: 'Free fonts and typography resources',
         },
         inLanguage: locale,
         keywords: categoryKeywords.join(', '),
